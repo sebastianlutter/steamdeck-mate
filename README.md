@@ -159,7 +159,7 @@ Contributions welcome! Feel free to open issues/pull requests for:
 
 ## License
 
-**[MIT License](LICENSE)** (or whichever license you prefer).
+**[MIT License](LICENSE)**
 
 ---
 
