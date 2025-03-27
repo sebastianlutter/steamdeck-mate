@@ -53,8 +53,6 @@ class ServiceDiscovery:
         )
 
         # 2) Combine user-supplied definitions with auto-discovered ones
-        #    (This means that duplicates may occur if they overlap by name;
-        #     you could also do deduping logic here if desired.)
         self.service_definitions = service_definitions + auto_discovered
 
         # Map of service-name -> dict with:
@@ -122,7 +120,7 @@ class ServiceDiscovery:
                         # We'll just do BaseService in this example.
                         #
                         # We auto-generate a name from the class, and set a default priority
-                        service_name = f"auto_{obj.__name__.lower()}"
+                        service_name = f"{obj.__name__}"
                         default_priority = 5
                         discovered.append((obj, service_name, default_priority))
 
@@ -194,7 +192,7 @@ class ServiceDiscovery:
                         except Exception:
                             self.services[name]["available"] = False
 
-    def print_status_table(self):
+    async def print_status_table(self):
         """
         Print a simple table of the current status of all services.
         """
@@ -203,22 +201,19 @@ class ServiceDiscovery:
         lines.append("-" * 55)
 
         # Acquire lock to read the latest data safely
-        async def gather_data():
-            async with self._services_lock:
-                return [(srv_name,
-                         srv_data["instance"].service_type if srv_data["instance"] else "N/A",
-                         srv_data["instance"].priority if srv_data["instance"] else "N/A",
-                         srv_data["available"])
-                        for srv_name, srv_data in self.services.items()]
 
-        loop = asyncio.get_event_loop()
-        data = loop.run_until_complete(gather_data())
+        async with self._services_lock:
+            data = [(srv_name,
+                     srv_data["instance"].service_type if srv_data["instance"] else "N/A",
+                     srv_data["instance"].priority if srv_data["instance"] else "N/A",
+                     srv_data["available"])
+                    for srv_name, srv_data in self.services.items()]
 
-        for name, srv_type, priority, available in data:
-            lines.append(
-                f"{name:<25}{srv_type:<8}{priority:<10}{str(available)}"
-            )
-        print("\n".join(lines))
+            for name, srv_type, priority, available in data:
+                lines.append(
+                    f"{name:<25}{srv_type:<8}{priority:<10}{str(available)}"
+                )
+            print("\n".join(lines))
 
     async def get_best_service(self, service_type: str) -> Optional[BaseService]:
         """

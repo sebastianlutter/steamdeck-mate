@@ -1,20 +1,18 @@
 import os
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
+from typing import AsyncGenerator
 
+from mate.services import BaseService
 from mate.services.llm.prompt_manager_interface import PromptManager
 
 
-class LmmInterface(ABC):
+class LmmInterface(BaseService, metaclass=ABCMeta):
 
     def __init__(self, name: str, priority: int):
         super().__init__(name, "LLM", priority)
-        self._counter = 0
-        self.llm_endpoint=os.getenv('LLM_ENDPOINT', 'http://127.0.0.1:11434')
-        self.llm_provider_model=os.getenv('LLM_PROVIDER_MODEL', 'llama3.2:3b')
-
 
     @abstractmethod
-    async def chat(self, full_chat) -> str:
+    async def chat(self, full_chat) -> AsyncGenerator[str, None]:
         pass
 
     @abstractmethod

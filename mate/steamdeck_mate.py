@@ -1,12 +1,16 @@
 import asyncio
 import numpy as np
 from mate.audio.soundcard_pyaudio import SoundCard  # Make sure this path matches your real import
+from mate.services import ServiceDiscovery
 
 
 class SteamdeckMate:
+
     def __init__(self):
         self.running = False
         self.soundcard = SoundCard()
+        # ServiceDiscovery with auto update of availability
+        self.service_discovery = ServiceDiscovery()
 
     async def listen_and_respond(self):
         """
@@ -14,6 +18,10 @@ class SteamdeckMate:
         Whenever we detect (or assume we detect) a keyword like "hello", we generate a response
         from our mock LLM and speak it out loud via play_audio().
         """
+        await self.service_discovery.start()
+        await asyncio.sleep(5)
+        await self.service_discovery.print_status_table()
+
         print("[Mate] Starting to listen...")
         self.running = True
 
@@ -76,6 +84,9 @@ class SteamdeckMate:
 
         # Give it a moment for any in-flight callbacks
         await asyncio.sleep(0.2)
+
+        # Stop service discovery
+        await self.service_discovery.stop()
 
         # Close the underlying PyAudio streams
         self.soundcard.close()
