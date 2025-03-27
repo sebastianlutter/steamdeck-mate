@@ -86,7 +86,7 @@ async def test_soundcard_play_and_wait():
     soundcard.play_audio(sample_rate=16000, audio_data=audio_data)
 
     # Wait for playback to finish
-    await soundcard.wait_until_playback_finished()
+    soundcard.wait_until_playback_finished()
 
     # Cleanup
     soundcard.close()

@@ -80,6 +80,10 @@ class AudioInterface(ABC):
         pass
 
     @abstractmethod
+    def close(self):
+        pass
+
+    @abstractmethod
     def wait_until_playback_finished(self):
         pass
 

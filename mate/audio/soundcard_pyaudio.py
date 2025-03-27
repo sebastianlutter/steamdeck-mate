@@ -236,38 +236,38 @@ class SoundCard(AudioInterface):
     #                          Playback Methods
     ###########################################################################
 
-    def play_audio(self, sample_rate: int, audio_array):
+    def play_audio(self, sample_rate: int, audio_data):
         """
         Enqueue the audio array for playback. The callback will handle retrieval.
         """
         # Check if array is not already numpy ndarray
-        if not isinstance(audio_array, np.ndarray):
-            if isinstance(audio_array, bytes):
-                audio_array = BytesIO(audio_array)
-            if isinstance(audio_array, BytesIO):
+        if not isinstance(audio_data, np.ndarray):
+            if isinstance(audio_data, bytes):
+                audio_data = BytesIO(audio_data)
+            if isinstance(audio_data, BytesIO):
                 # so it is a BytesIO object containing a WAV file. Convert to numpy raw PCM data (without WAV header)
                 # Extract raw PCM data from the WAV buffer
-                audio_array.seek(0)  # Reset the buffer pointer to the beginning
-                with wave.open(audio_array, 'rb') as wav_file:
+                audio_data.seek(0)  # Reset the buffer pointer to the beginning
+                with wave.open(audio_data, 'rb') as wav_file:
                     # Read audio frames and convert them to a NumPy array
                     audio_frames = wav_file.readframes(wav_file.getnframes())
                     audio_frames = np.frombuffer(audio_frames, dtype=np.float32)
                     # Ensure the audio is in the correct range for int16 playback
                     # Scale float data (-1.0 to 1.0) to int16 range
-                    audio_array = (audio_frames * 32767).clip(-32768, 32767).astype(np.int16)
+                    audio_data = (audio_frames * 32767).clip(-32768, 32767).astype(np.int16)
                     #audio_array = np.array(new_audio_array)
             else:
-                raise Exception(f"Cannot deal with objects of type {type(audio_array)}")
+                raise Exception(f"Cannot deal with objects of type {type(audio_data)}")
         # Ensure the audio is in the correct range for int16 playback
-        if np.issubdtype(audio_array.dtype, np.floating):
+        if np.issubdtype(audio_data.dtype, np.floating):
             # Scale float data (-1.0 to 1.0) to int16 range
-            audio_array = (audio_array * 32767).clip(-32768, 32767).astype(np.int16)
-        self.logger.debug(f"soundcard_pyaudio.play_audio: Adding to queue: {len(audio_array)} bytes")
+            audio_data = (audio_data * 32767).clip(-32768, 32767).astype(np.int16)
+        self.logger.debug(f"soundcard_pyaudio.play_audio: Adding to queue: {len(audio_data)} bytes")
         # If we previously set stop_signal_playback, clear it:
         if self.stop_signal_playback.is_set():
             self.logger.debug("soundcard_pyaudio.play_audio:Unblock playback with play_audio function")
             self.stop_signal_playback.clear()
-        self.playback_queue.put((sample_rate, audio_array))
+        self.playback_queue.put((sample_rate, audio_data))
 
     def stop_playback(self):
         """
@@ -376,6 +376,20 @@ class SoundCard(AudioInterface):
             )
         print("-" * 85)
         print()
+
+    def close(self):
+        try:
+            self.stop_playback()
+        except:
+            pass
+        try:
+            self.stop_recording()
+        except:
+            pass
+        try:
+            self.audio.close()
+        except:
+            pass
 
     def is_valid_device_index(self, index, input_device=True):
         """Check if the given device index is valid and can be used as an input or output device."""
