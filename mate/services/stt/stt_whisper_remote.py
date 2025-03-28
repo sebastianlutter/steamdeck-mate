@@ -49,10 +49,10 @@ dataset_bias = [
 
 class STTWhisperRemote(STTInterface):
 
-    def __init__(self):
-        super().__init__("WorkstationSTTWhisper", 100)
+    def __init__(self, name: str, priority: int, endpoint: str):
+        super().__init__(name=name, priority=priority)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.stt_endpoint = "http://192.168.0.75:8000/v1/audio/transcriptions?language=de"
+        self.stt_endpoint = endpoint
         # use the http endpoint for websocket
         self.ws_url = self.stt_endpoint.replace('http://','ws://')
         websocket.enableTrace(False)
@@ -188,3 +188,26 @@ class STTWhisperRemote(STTInterface):
 
     def config_str(self):
         return f'endpoint: {self.stt_endpoint}'
+    
+    
+class WorkstationSTTWhisper(STTWhisperRemote):
+    
+    config = {
+        "name": "WorkstationSTTWhisper",
+        "priority": 100,
+        "endpoint": "http://192.168.0.75:8000/v1/audio/transcriptions?language=de"
+    }
+    
+    def __init__(self):
+        super().__init__(**self.config)
+
+
+class SteamdeckSTTWhisper(STTWhisperRemote):
+    config = {
+        "name": "SteamdeckSTTWhisper",
+        "priority": 0,
+        "endpoint": "http://127.0.0.1:8000/v1/audio/transcriptions?language=de"
+    }
+
+    def __init__(self):
+        super().__init__(**self.config)

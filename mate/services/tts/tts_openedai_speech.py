@@ -15,15 +15,16 @@ class TTSOpenedAISpeech(TTSInterface):
     def config_str(self) -> str:
         pass
 
-    def __init__(self):
-        super().__init__(name="WorkstationTTS", priority=100)
-        self.tts_endpoint = "http://192.168.0.75:8001/v1"
+    def __init__(self, name: str, priority: int, endpoint: str, voice: str):
+        super().__init__(name=name, priority=priority)
+        self.tts_endpoint = endpoint
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.client = openai.OpenAI(
             # Set environment variables for API configuration
             api_key="sk-111111111",
             base_url=self.tts_endpoint,
         )
+        self.voice = voice
 
     async def check_availability(self) -> bool:
         # 1) Parse out the host and port
@@ -79,3 +80,27 @@ class TTSOpenedAISpeech(TTSInterface):
         with open(store_file_name, "wb") as f:
             f.write(audio_stream.getbuffer())
 
+
+class WorkstationTTSOpenedAI(TTSOpenedAISpeech):
+
+    config = {
+        "name": "WorkstationTTS",
+        "priority": 100,
+        "endpoint": "http://192.168.0.75:8001/v1",
+        "voice": "thorsten-medium"
+    }
+    
+    def __init__(self):
+        super().__init__(**self.config)
+
+
+class SteamdeckTTSOpenedAI(TTSOpenedAISpeech):
+    config = {
+        "name": "SteamdeckTTS",
+        "priority": 0,
+        "endpoint": "http://192.168.0.75:8001/v1",
+        "voice": "thorsten-low"
+    }
+
+    def __init__(self):
+        super().__init__(**self.config)

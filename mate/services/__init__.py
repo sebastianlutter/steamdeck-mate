@@ -108,7 +108,7 @@ class ServiceDiscovery:
                     continue
 
                 # Inspect all classes in the module
-                ignore_classes = ["LlmOllamaRemote"]
+                ignore_classes = ["LlmOllamaRemote", "STTWhisperRemote", "TTSOpenedAISpeech"]
                 for name, obj in inspect.getmembers(mod, inspect.isclass):
                     if name in ignore_classes:
                         continue
