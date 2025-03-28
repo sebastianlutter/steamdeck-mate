@@ -12,6 +12,8 @@ from tqdm import tqdm
 
 from mate.audio.soundcard_pyaudio import SoundCard
 from mate.interrupt_speech_thread import InterruptSpeechThread
+from mate.services.stt.stt_interface import STTInterface
+from mate.services.tts.tts_interface import TTSInterface
 from mate.voice_activated_recording.va_picovoice import PorcupineWakeWord
 from mate.services import ServiceDiscovery
 
@@ -84,7 +86,7 @@ class HumanSpeechAgent:
         self.soundcard.play_audio(sample_rate, audio_buffer)
 
     def say_abort_speech(self) -> None:
-        tts_provider = self.service_discovery.get_best_service("TTS")
+        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
         tts_provider.set_stop_signal()
         tts_provider.soundcard.stop_playback()
         hi_phrase = random.choice(self.abort_speech_choices)
@@ -97,7 +99,7 @@ class HumanSpeechAgent:
         mp3_path = self._get_cache_file_name(hi_phrase)
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio(mp3_path)
         self.soundcard.play_audio(sample_rate, audio_buffer)
-        tts_provider = self.service_discovery.get_best_service("TTS")
+        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
         tts_provider.speak(f"Ich höre auf den Namen {self.voice_activator.wakeword}")
         tts_provider.wait_until_done()
         self.soundcard.wait_until_playback_finished()
@@ -113,7 +115,7 @@ class HumanSpeechAgent:
         bye_phrase = random.choice(self.bye_choices)
         mp3_path = self._get_cache_file_name(bye_phrase)
         self.logger.info("say_bye: %s%s", message, bye_phrase)
-        tts_provider = self.service_discovery.get_best_service("TTS")
+        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
         if message != "":
             tts_provider.speak(message)
         tts_provider.wait_until_done()
@@ -133,7 +135,7 @@ class HumanSpeechAgent:
 
     def skip_all_and_say(self, message: str) -> None:
         self.logger.info("Skip all and say: %s", message)
-        tts_provider = self.service_discovery.get_best_service("TTS")
+        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
         tts_provider.set_stop_signal()
         tts_provider.wait_until_done()
         time.sleep(0.2)
@@ -142,7 +144,7 @@ class HumanSpeechAgent:
 
     def wait_until_talking_finished(self) -> None:
         self.logger.info("block_until_talking_finished: blocking")
-        tts_provider = self.service_discovery.get_best_service("TTS")
+        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
         c = 0
         while c < 2:
             c += 1
@@ -164,7 +166,7 @@ class HumanSpeechAgent:
         def on_ws_open() -> None:
             self.logger.debug("on_ws_open: Should say_hi now ws is opened:")
 
-        stt_provider = self.service_discovery.get_best_service("STT")
+        stt_provider: STTInterface = self.service_discovery.get_best_service("STT")
         async for text in stt_provider.transcribe_stream(
             audio_stream=self.start_recording(),
             websocket_on_close=on_close_ws_callback,

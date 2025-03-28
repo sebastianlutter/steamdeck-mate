@@ -21,11 +21,12 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
         self.client: Client = Client(host=self.llm_endpoint)
         self.model: str = self.llm_provider_model
         self.prompt_manager: PromptManager = LlamaPromptManager(
-            initial_mode=Mode.MODUS_SELECTION,
+            initial_mode=Mode.CHAT,
             reduction_strategy=RemoveOldestStrategy()
         )
 
     async def chat(self, full_chat: List[Dict[str, str]]) -> AsyncGenerator[str, None]:
+        print(f"LLM CHAT: {full_chat}")
         content = self.client.chat(
             model=self.model,
             stream=True,

@@ -4,6 +4,7 @@ import logging
 import pkgutil
 import importlib
 import inspect
+import threading
 from typing import Dict, Any, List, Tuple, Optional, Type
 
 from mate.services.llm.prompt_manager_interface import PromptManager
@@ -38,12 +39,31 @@ class ServiceDiscovery:
     Manages a set of services. Periodically checks each service's status
     (available/unavailable). Allows retrieval of the 'best' service for a
     given type, e.g., 'TTS', 'STT', or 'LLM'.
+
+    Now implemented as a thread-safe Singleton with double-checked locking.
     """
+
+    _instance: Optional["ServiceDiscovery"] = None
+    _instance_lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        # First check without lock (fast path)
+        if cls._instance is None:
+            with cls._instance_lock:
+                # Double-check under lock
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(
         self,
         service_definitions: Optional[List[Tuple[Type[BaseService], str, int]]] = None
     ) -> None:
+        # Ensure __init__ body runs only once
+        if getattr(self, "_initialized", False):
+            return
+        self._initialized = True
+
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         if service_definitions is None:
             service_definitions = []
@@ -65,7 +85,7 @@ class ServiceDiscovery:
         #   }
         self.services: Dict[str, Dict[str, Any]] = {}
 
-        # Lock for thread-safe read/write of self.services
+        # Lock for thread-safe read/write of self.services within async tasks
         self._services_lock = asyncio.Lock()
 
         # Background task reference for availability checks
@@ -105,6 +125,7 @@ class ServiceDiscovery:
                     self.logger.warning("Failed to import module %s: %s", mod_name, e)
                     continue
 
+                # Customize these as desired
                 ignore_classes = ["LlmOllamaRemote", "STTWhisperRemote", "TTSOpenedAISpeech"]
                 for name, obj in inspect.getmembers(mod, inspect.isclass):
                     if name in ignore_classes:

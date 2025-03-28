@@ -4,8 +4,13 @@ from mate.audio.soundcard_pyaudio import SoundCard  # Make sure this path matche
 from mate.services import ServiceDiscovery
 from typing import Any, AsyncGenerator
 
+from mate.services.llm.llm_interface import LlmInterface
+
+#format_string = (
+#    "%(asctime)s - [Logger: %(name)s] - %(levelname)s - %(filename)s:%(lineno)d in %(funcName)s() - %(message)s"
+#)
 format_string = (
-    "%(asctime)s - [Logger: %(name)s] - %(levelname)s - %(filename)s:%(lineno)d in %(funcName)s() - %(message)s"
+    "[%(levelname)s - %(filename)s:%(lineno)d - %(message)s"
 )
 logging.basicConfig(format=format_string, level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.ERROR)
@@ -33,9 +38,7 @@ class SteamdeckMate:
                 response: str = await self.ask_llm("hello")
                 await self.speak_response(response)
 
-                break
-
-                if not self.running:
+                if not self.running or True:
                     break
         except asyncio.CancelledError:
             pass
@@ -43,13 +46,16 @@ class SteamdeckMate:
             self.logger.info("Recording loop has ended.")
 
     async def ask_llm(self, text: str) -> str:
-        llm_provider = await self.service_discovery.get_best_service("LLM")
+        llm_provider: LlmInterface  = await self.service_discovery.get_best_service("LLM")
         prompt_manager = llm_provider.get_prompt_manager()
+        prompt_manager.add_user_entry(text)
         full_res: str = ""
         async for res in llm_provider.chat(prompt_manager.get_history()):
-            self.logger.info(res)
+            print(res,end='')
             full_res += res
-        return f"User: '{text}'\nAI: {full_res}"
+        logging.info(f"Response: {full_res}")
+        prompt_manager.add_assistant_entry(full_res)
+        return full_res
 
     async def speak_response(self, response: str) -> None:
         self.logger.info("Speaking: %s", response)
