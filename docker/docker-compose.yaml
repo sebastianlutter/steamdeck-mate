@@ -60,4 +60,5 @@ services:
 
 volumes:
   ollama-downloads:
+  hugging_face_cache:
 

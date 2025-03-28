@@ -31,8 +31,8 @@ services:
     ports:
       - "8001:8000"
     volumes:
-      - ./voices:/app/voices
-      - ./config:/app/config
+      - ./tts/voices:/app/voices
+      - ./tts/config:/app/config
     environment:
       TTS_HOME: "/app/voices"
       HF_HOME: "/app/voices"
