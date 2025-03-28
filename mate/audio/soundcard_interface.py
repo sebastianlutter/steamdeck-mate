@@ -1,40 +1,38 @@
-# soundcard_interface.py
 import os
 import threading
-from abc import ABC, abstractmethod
+import logging
 import numpy as np
-from typing import BinaryIO, List, Callable, Generator, AsyncGenerator
-
+from abc import ABC, abstractmethod
+from typing import Optional, AsyncGenerator
 
 class AudioInterface(ABC):
-
     """
     A metaclass that combines ABCMeta and Singleton logic.
     This metaclass ensures that only one instance of any class using it is created.
-    Only the first constructor call creates an instance, the other get the same reference
+    Only the first constructor call creates an instance, the others get the same reference.
     """
+
     _instances = {}
 
-    def __call__(cls, *args, **kwargs):
-        # Check if an instance already exists
+    def __call__(cls, *args, **kwargs):  # type: ignore
         if cls not in cls._instances:
-            # Call ABCMeta.__call__ to create the instance (this respects ABC constraints)
             instance = super(AudioInterface, cls).__call__(*args, **kwargs)
             cls._instances[cls] = instance
         return cls._instances[cls]
 
-    def __init__(self):
-        self.frames_per_buffer = 512
-        self.sample_rate = 16000
+    def __init__(self) -> None:
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.frames_per_buffer: int = 512
+        self.sample_rate: int = 16000
         self.input_channels: int = 1
-        self.bytes_per_frame = 2
-        # Read environment variables
-        self.audio_microphone_device = int(os.getenv('AUDIO_MICROPHONE_DEVICE', '-1'))
-        if self.audio_microphone_device < 0:
-            self.audio_microphone_device = None
-        self.audio_playback_device = int(os.getenv('AUDIO_PLAYBACK_DEVICE', '-1'))
-        if self.audio_playback_device < 0:
-            self.audio_playback_device = None
+        self.bytes_per_frame: int = 2
+
+        env_mic_device = int(os.getenv("AUDIO_MICROPHONE_DEVICE", "-1"))
+        self.audio_microphone_device: Optional[int] = None if env_mic_device < 0 else env_mic_device
+
+        env_playback_device = int(os.getenv("AUDIO_PLAYBACK_DEVICE", "-1"))
+        self.audio_playback_device: Optional[int] = None if env_playback_device < 0 else env_playback_device
+
         self.stop_signal_record = threading.Event()
         self.start_signal_record = threading.Event()
 
@@ -58,73 +56,70 @@ class AudioInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_record_stream(self)  -> AsyncGenerator[bytes, None]:
+    async def get_record_stream(self) -> AsyncGenerator[bytes, None]:
         """
-        Open a recording stream (or equivalent object) for capturing audio from the currently selected microphone device.
+        Open a recording stream for capturing audio from the currently selected microphone device.
 
-        :return: A stream or device handle suitable for reading raw audio data frames.
+        :return: An async generator yielding raw audio data frames as bytes.
         :raises RuntimeError: If no valid microphone device is configured.
         """
         pass
 
     @abstractmethod
-    def stop_recording(self):
+    def stop_recording(self) -> None:
         pass
 
     @abstractmethod
-    def stop_playback(self):
+    def stop_playback(self) -> None:
         pass
 
     @abstractmethod
-    def play_audio(self, sample_rate, audio_buffer):
+    def play_audio(self, sample_rate: int, audio_buffer: np.ndarray) -> None:
         pass
 
     @abstractmethod
-    def close(self):
+    def close(self) -> None:
         pass
 
     @abstractmethod
-    def wait_until_playback_finished(self):
+    def wait_until_playback_finished(self) -> None:
         pass
 
-    def config_str(self):
-        return f'Soundcard device: microphone={self.audio_microphone_device}, playback: {self.audio_playback_device}'
+    def config_str(self) -> str:
+        return (
+            f"Soundcard device: microphone={self.audio_microphone_device}, "
+            f"playback={self.audio_playback_device}"
+        )
 
-
-    def inspect_ndarray(self, array: np.ndarray, name: str = "Array"):
+    def inspect_ndarray(self, array: np.ndarray, name: str = "Array") -> None:
         """
-        Inspect and print useful information about a given ndarray.
-
-        Args:
-            array (np.ndarray): The ndarray to inspect.
-            name (str): An optional name for the array (useful for labeling in print statements).
+        Inspect and log useful information about a given ndarray.
         """
         try:
-            print(f"--- {name} Information ---")
-            print(f"Shape: {array.shape}")
-            print(f"Data Type: {array.dtype}")
-            print(f"Min Value: {np.min(array)}")
-            print(f"Max Value: {np.max(array)}")
-            # For floating-point arrays, check if values are in the expected range
+            self.logger.info("--- %s Information ---", name)
+            self.logger.info("Shape: %s", array.shape)
+            self.logger.info("Data Type: %s", array.dtype)
+            self.logger.info("Min Value: %s", np.min(array))
+            self.logger.info("Max Value: %s", np.max(array))
+
             if np.issubdtype(array.dtype, np.floating):
-                print(f"Mean Value: {np.mean(array)}")
-                print("Expected range for floats:")
+                self.logger.info("Mean Value: %s", np.mean(array))
+                self.logger.info("Expected range for floats:")
                 if np.min(array) >= -1.0 and np.max(array) <= 1.0:
-                    print("Values are in the range -1.0 to 1.0 (normalized float audio).")
+                    self.logger.info("Values are in the range -1.0 to 1.0 (normalized float audio).")
                 elif np.min(array) >= 0.0 and np.max(array) <= 1.0:
-                    print("Values are in the range 0.0 to 1.0 (possibly normalized float).")
+                    self.logger.info("Values are in the range 0.0 to 1.0 (possibly normalized float).")
                 else:
-                    print("Values are outside common float ranges (requires inspection).")
-            # For integer arrays, show the range of the integer type
+                    self.logger.warning("Values are outside common float ranges (requires inspection).")
             elif np.issubdtype(array.dtype, np.integer):
                 dtype_info = np.iinfo(array.dtype)
-                print(f"Integer Range: {dtype_info.min} to {dtype_info.max}")
+                self.logger.info("Integer Range: %d to %d", dtype_info.min, dtype_info.max)
                 if np.min(array) >= 0 and np.max(array) <= 255:
-                    print("Values are in the range 0 to 255 (8-bit unsigned integer audio).")
+                    self.logger.info("Values are in the range 0 to 255 (8-bit unsigned integer audio).")
                 elif np.min(array) >= dtype_info.min and np.max(array) <= dtype_info.max:
-                    print("Values fit within the expected range for the integer type.")
+                    self.logger.info("Values fit within the expected range for the integer type.")
                 else:
-                    print("Values are outside the expected range for this integer type.")
-            print("--- End of Inspection ---\n")
+                    self.logger.warning("Values are outside the expected range for this integer type.")
+            self.logger.info("--- End of Inspection ---\n")
         except Exception as e:
-            print(f"Error while inspecting {name}: {e}")
+            self.logger.exception("Error while inspecting %s: %s", name, e)

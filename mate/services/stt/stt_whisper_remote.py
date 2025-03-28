@@ -1,6 +1,6 @@
 import json
 import time
-from typing import Callable, AsyncGenerator
+from typing import Callable, AsyncGenerator, Optional
 import websocket
 import threading
 import asyncio
@@ -11,7 +11,7 @@ from queue import Queue
 from mate.services.stt.stt_interface import STTInterface
 from websocket import WebSocket, WebSocketApp, ABNF
 
-# see https://github.com/openai/whisper/discussions/1536
+
 dataset_bias = [
     "Untertitel Vielen Dank für's Zuschauen und bis zum nächsten Mal!",
     "Vielen Dank für's Zuschauen",
@@ -48,157 +48,159 @@ dataset_bias = [
 
 
 class STTWhisperRemote(STTInterface):
-
-    def __init__(self, name: str, priority: int, endpoint: str):
+    def __init__(self, name: str, priority: int, endpoint: str) -> None:
         super().__init__(name=name, priority=priority)
-        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.stt_endpoint = endpoint
-        # use the http endpoint for websocket
-        self.ws_url = self.stt_endpoint.replace('http://','ws://')
+        self.logger: logging.Logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.stt_endpoint: str = endpoint
+        self.ws_url: str = self.stt_endpoint.replace("http://", "ws://")
         websocket.enableTrace(False)
-        # if True then the transcription send to the API server is stored as recording_TIMESTAMP.wav
-        self.store_wav = False
+        self.store_wav: bool = False
 
     async def check_availability(self) -> bool:
-        # 1) Parse out the host and port
         parsed = urlparse(self.stt_endpoint)
-        host = parsed.hostname
-        port = parsed.port
-
-        # 2) Check if we can connect to host:port
-        #    Using an asyncio open_connection for an async-friendly approach
+        host: Optional[str] = parsed.hostname
+        port: Optional[int] = parsed.port
+        if not host or not port:
+            self.logger.warning("Invalid endpoint: %s", self.stt_endpoint)
+            return False
         try:
             reader, writer = await asyncio.open_connection(host, port)
             writer.close()
             await writer.wait_closed()
         except Exception as e:
-            print(f"[check_availability {self.name}] Could not connect to host '{host}' on port {port}.")
-            print(f"    Reason: {e}")
+            self.logger.warning(
+                "[check_availability %s] Could not connect to host '%s' on port %s. Reason: %s",
+                self.name, host, port, e
+            )
             return False
         return True
 
-    async def transcribe_stream(self, audio_stream: AsyncGenerator[bytes, None], websocket_on_close: Callable[[], None], websocket_on_open: Callable[[], None]) -> AsyncGenerator[str, None]:
-        queue = Queue()  # Back channel for transcription results
-        # A callback function for receiving messages from the WebSocket
-        def on_message(wsc: WebSocket, message: str):
+    async def transcribe_stream(
+        self,
+        audio_stream: AsyncGenerator[bytes, None],
+        websocket_on_close: Callable[[], None],
+        websocket_on_open: Callable[[], None],
+    ) -> AsyncGenerator[str, None]:
+        queue_data: Queue[Optional[str]] = Queue()
+
+        def on_message(wsc: WebSocket, message: str) -> None:
             try:
                 result = json.loads(message)
-                if 'text' in result and result['text'].strip():
-                    res_txt = result['text'].strip().replace('  ',' ')
-                    # remove unwanted response, see
-                    # https://github.com/openai/whisper/discussions/1536
+                if "text" in result and result["text"].strip():
+                    res_txt: str = result["text"].strip().replace("  ", " ")
                     for txt in dataset_bias:
                         if txt in res_txt:
-                            res_txt = res_txt.replace(txt, '')
+                            res_txt = res_txt.replace(txt, "")
                     if len(res_txt.strip()) > 8:
-                        queue.put(res_txt.strip())  # Push the transcription result into the queue
+                        queue_data.put(res_txt.strip())
             except json.JSONDecodeError:
-                self.logger.warning(f"got non json: {message}")
-                pass  # Ignore non-JSON messages
-        # A synchronous callback for handling WebSocket connection establishment
-        thread_stop_event =  threading.Event()
-        # Collect the WAV data from the stream into a BytesIO buffer
-        def on_open(wsc2: WebSocket):
-            self.logger.debug(f"Successfully connected websocket {self.ws_url}")
-            # call external callback
+                self.logger.warning("Got non-JSON message: %s", message)
+
+        thread_stop_event: threading.Event = threading.Event()
+
+        def on_open(wsc2: WebSocket) -> None:
+            self.logger.debug("Successfully connected websocket %s", self.ws_url)
             websocket_on_open()
-            def send_audio_chunks():
+
+            def send_audio_chunks() -> None:
                 try:
-                    start_time_sending = time.time()
+                    start_time_sending: float = time.time()
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    async def send_chunks():
-                            async for wav_chunk in audio_stream:
-                                if thread_stop_event.is_set():  # Check if the stop event is set
-                                    #self.logger.info("stt_whisper_remote.transcribe_stream.on_open.send_audio_chunks.send_chunks: Stop signal received, exiting send_chunks.")
-                                    loop.stop()
-                                    break
-                                # Websocket needs raw PCM (pcm_s16le) encoded bytes.
-                                # Only transcription of a single channel, 16000 sample rate, raw, 16-bit little-endian
-                                # audio is supported.
-                                wsc2.send(wav_chunk, opcode=ABNF.OPCODE_BINARY)
+
+                    async def send_chunks() -> None:
+                        async for wav_chunk in audio_stream:
+                            if thread_stop_event.is_set():
+                                loop.stop()
+                                break
+                            wsc2.send(wav_chunk, opcode=ABNF.OPCODE_BINARY)
+
                     loop.run_until_complete(send_chunks())
-                except KeyboardInterrupt as e:
-                    # stopped by the user
+                except KeyboardInterrupt:
                     websocket_on_close()
                     thread_stop_event.set()
-                    raise e
+                    raise
                 except BaseException as e:
-                    self.logger.error(f"Error in send_audio_chunks: {e}")
+                    self.logger.error("Error in send_audio_chunks: %s", e)
                     websocket_on_close()
                     thread_stop_event.set()
                 finally:
-                    self.logger.debug(f"Sent data to websocket for {time.time()-start_time_sending} seconds. Cleaning up thread and ws resources.")
-                    if wsc2:
-                        wsc2.close()  # Close the WebSocket connection
-                    if loop:
-                        if loop.is_running():
-                            loop.stop()
-                        if not loop.is_closed():
-                            loop.close()
+                    self.logger.debug(
+                        "Sent data to websocket for %f seconds. Cleaning up thread and ws resources.",
+                        time.time() - start_time_sending,
+                    )
+                    try:
+                        wsc2.close()
+                    except Exception:
+                        pass
+                    if loop.is_running():
+                        loop.stop()
+                    if not loop.is_closed():
+                        loop.close()
                     thread_stop_event.set()
-            # Start the thread to run async
+
             threading.Thread(target=send_audio_chunks, daemon=True).start()
-        def on_error(ws, code):
-            self.logger.error(f"WebSocket error: {code}")
+
+        def on_error(ws_obj: WebSocket, code: str) -> None:
+            self.logger.error("WebSocket error: %s", code)
             websocket_on_close()
             thread_stop_event.set()
-        def on_close(ws: WebSocket, i1, i2):
-            self.logger.debug(f"WebSocket closed: {i1}, {i2}")
-            queue.put(None)
+
+        def on_close(ws_obj: WebSocket, i1: Any, i2: Any) -> None:
+            self.logger.debug("WebSocket closed: %s, %s", i1, i2)
+            queue_data.put(None)
             websocket_on_close()
             thread_stop_event.set()
+
+        ws: Optional[WebSocketApp] = None
         try:
-            self.logger.debug(f"Starting websocket connection to {self.ws_url}")
+            self.logger.debug("Starting websocket connection to %s", self.ws_url)
             ws = WebSocketApp(
                 self.ws_url,
                 on_open=on_open,
                 on_message=on_message,
                 on_error=on_error,
-                on_close=on_close
+                on_close=on_close,
             )
             ws_thread = threading.Thread(target=ws.run_forever, daemon=True)
             ws_thread.start()
-            # Wait for WebSocket to complete
-            # Yield transcription results from the queue
-            old_full_text = ''
+
+            old_full_text: str = ""
             while not thread_stop_event.is_set():
-                t = queue.get()
+                t: Optional[str] = queue_data.get()
                 if t is None:
                     break
-                t_diff = t[len(old_full_text):]
-                # update the text
+                t_diff: str = t[len(old_full_text) :]
                 old_full_text = t
-                self.logger.info(f"got: {t_diff}")
+                self.logger.info("got: %s", t_diff)
                 yield t_diff
+
             ws_thread.join()
-            self.logger.debug(f"Transcription queue closed")
-        except KeyboardInterrupt as e:
-            # stopped by the user
-            raise e
+            self.logger.debug("Transcription queue closed")
+        except KeyboardInterrupt:
+            raise
         except BaseException as e:
-            self.logger.error(f"type={type(e)}, e={e}")
+            self.logger.error("Error: %s, type=%s", e, type(e))
             thread_stop_event.set()
             if ws:
-                ws.close()  # Gracefully close the WebSocket
+                ws.close()
             if ws_thread and ws_thread.is_alive():
-                ws_thread.join(timeout=5)  # Ensure the thread has stopped
+                ws_thread.join(timeout=5)
         finally:
-            self.logger.debug(f"Cleanup completed")
+            self.logger.debug("Cleanup completed")
 
-    def config_str(self):
-        return f'endpoint: {self.stt_endpoint}'
-    
-    
+    def config_str(self) -> str:
+        return f"endpoint: {self.stt_endpoint}"
+
+
 class WorkstationSTTWhisper(STTWhisperRemote):
-    
     config = {
         "name": "WorkstationSTTWhisper",
         "priority": 100,
-        "endpoint": "http://192.168.0.75:8000/v1/audio/transcriptions?language=de"
+        "endpoint": "http://192.168.0.75:8000/v1/audio/transcriptions?language=de",
     }
-    
-    def __init__(self):
+
+    def __init__(self) -> None:
         super().__init__(**self.config)
 
 
@@ -206,8 +208,8 @@ class SteamdeckSTTWhisper(STTWhisperRemote):
     config = {
         "name": "SteamdeckSTTWhisper",
         "priority": 0,
-        "endpoint": "http://127.0.0.1:8000/v1/audio/transcriptions?language=de"
+        "endpoint": "http://127.0.0.1:8000/v1/audio/transcriptions?language=de",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(**self.config)

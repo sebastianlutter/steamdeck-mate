@@ -1,9 +1,10 @@
 import logging
+import datetime
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Optional, TypeVar, List
 from dataclasses import dataclass
 from enum import Enum
-import datetime
+from typing import Any, Dict, Generic, List, Optional, TypeVar
+
 
 # Define Modes
 class Mode(Enum):
@@ -24,7 +25,7 @@ class Mode(Enum):
     """
     MODUS_SELECTION = ''
 
-# Define PromptTemplate
+
 @dataclass
 class PromptTemplate:
     mode: Mode
@@ -32,43 +33,43 @@ class PromptTemplate:
     user_say_str: str
     description: str
 
-    def format_prompt(self, context_data: Dict[str, str] = None) -> str:
+    def format_prompt(self, context_data: Optional[Dict[str, str]] = None) -> str:
         if context_data is None:
             context_data = {}
-        system_prompt_formatted = self.system_prompt.format(**context_data)
+        system_prompt_formatted: str = self.system_prompt.format(**context_data)
         return system_prompt_formatted
 
-# Define type variables for History and Entry
-H = TypeVar('H')  # History type
-E = TypeVar('E')  # Entry type
+
+H = TypeVar("H")  # History type
+E = TypeVar("E")  # Entry type
 
 GLOBAL_BASE_TEMPLATES: Dict[str, PromptTemplate] = {
     Mode.MODUS_SELECTION.name: PromptTemplate(
         mode=Mode.MODUS_SELECTION,
-        description='Modus Auswahl',
+        description="Modus Auswahl",
         system_prompt=(
                 "Du musst genau einen der folgenden Modi (GROSSBUCHSTABEN) wählen: "
                 f"{', '.join([mode.name for mode in Mode if mode != Mode.MODUS_SELECTION])}\n"
-                f"Beginne deine Antwort, indem du den gewählten Modus in GROSSBUCHSTABEN nennst (z. B. \"EXIT\"). "
+                "Beginne deine Antwort, indem du den gewählten Modus in GROSSBUCHSTABEN nennst (z. B. \"EXIT\"). "
                 "Beende deine Antwort danach. Keine weiteren Erklärungen, Haftungsausschlüsse oder zusätzlicher Text.\n\n"
-                "Befolge diese Regeln strikt:\n" +
-                "\n".join(f"- {m.value}" for m in Mode if m.value)
+                "Befolge diese Regeln strikt:\n"
+                + "\n".join(f"- {m.value}" for m in Mode if m.value)
         ),
-        user_say_str=''
+        user_say_str=""
     ),
     Mode.CHAT.name: PromptTemplate(
         mode=Mode.CHAT,
-        description='Live Chat Modus',
+        description="Live Chat Modus",
         system_prompt=(
-            'Beantworte die Fragen als freundlicher und zuvorkommender Helfer. '
-            'Antworte kindergerecht für Kinder ab acht Jahren. '
-            'Antworte maximal mit 1 bis 3 kurzen Sätzen und stelle Gegenfragen, wenn der Sachverhalt unklar ist.'
+            "Beantworte die Fragen als freundlicher und zuvorkommender Helfer. "
+            "Antworte kindergerecht für Kinder ab acht Jahren. "
+            "Antworte maximal mit 1 bis 3 kurzen Sätzen und stelle Gegenfragen, wenn der Sachverhalt unklar ist."
         ),
-        user_say_str='Lass uns etwas plaudern, Modus ist nun CHAT'
+        user_say_str="Lass uns etwas plaudern, Modus ist nun CHAT"
     ),
     Mode.LEDCONTROL.name: PromptTemplate(
         mode=Mode.LEDCONTROL,
-        description='LED Kontroll Modus',
+        description="LED Kontroll Modus",
         system_prompt="""
 Du steuerst LED-Lichter per JSON requests. 
 Der User möchte sie möglicherweise ein- oder ausschalten oder die Farbe oder Helligkeit ändern. 
@@ -85,7 +86,7 @@ Parameter und mögliche Werte:
 
 Stelle sicher, dass deine endgültige Ausgabe ein kurzes JSON-Snippet im folgendem Format ist:
 Der action parameter ist mandatory, andere parameter sind je nach Modus zu wählen.
-            
+
 Scene ID Reference (Tabelle)
 
 | scene | Scene Name   | Beschreibung / Hinweise                                                      | Statisch oder Dynamisch? | Typischerweise relevante Parameter 
@@ -135,171 +136,128 @@ Animated Fireplace light: {'action': 'on','scene': 5, 'speed': 100, 'brightness'
 Beachte das rgbww ein Tupel mit 5 elementen ist.
 Beachte die wichtigste Regel strikt: Antworte mit EINER EINZELNEN JSON Ausgabe die den Endzustand beschreibt, und beende danach. Keine weiteren Erklärungen, Haftungsausschlüsse oder zusätzlicher Text.
 """,
-        user_say_str=''
+        user_say_str=""
     ),
     Mode.GARBAGEINPUT.name: PromptTemplate(
         mode=Mode.GARBAGEINPUT,
-        description='Unverständlicher Input',
+        description="Unverständlicher Input",
         system_prompt=(
             "Die Benutzereingabe ist unverständlich oder unvollständig. "
             "Bitte fordere den Benutzer auf, die Anfrage zu präzisieren."
         ),
-        user_say_str=''
+        user_say_str=""
     ),
     Mode.EXIT.name: PromptTemplate(
         mode=Mode.STATUS,
         description="Anzeigen des System Status",
-        system_prompt='',
-        user_say_str=''
+        system_prompt="",
+        user_say_str=""
     ),
     Mode.STATUS.name: PromptTemplate(
         mode=Mode.EXIT,
         description="Beenden",
-        system_prompt='',
-        user_say_str=''
-    )
+        system_prompt="",
+        user_say_str=""
+    ),
 }
 
-# Define ReductionStrategy
+
 class ReductionStrategy(ABC):
     @abstractmethod
-    def reduce(self, history: List[Dict[str, str]], tokenize_fn, token_limit: int) -> None:
-        """
-        Reduce the history in-place to fit within the token limit.
-        """
+    def reduce(self, history: List[Dict[str, str]], tokenize_fn: Any, token_limit: int) -> None:
         pass
 
-# Concrete Strategy: Remove Oldest Entries
+
 class RemoveOldestStrategy(ReductionStrategy):
-    def reduce(self, history: List[Dict[str, str]], tokenize_fn, token_limit: int) -> None:
-        """
-        Remove the oldest entries until the token count is within the limit.
-        """
-        while self.calculate_token_count(history, tokenize_fn) > token_limit and history:
-            removed_entry = history.pop(0)
-            self.logger.debug(f"Removed entry to reduce tokens: {removed_entry}")
-
-    def calculate_token_count(self, history: List[Dict[str, str]], tokenize_fn) -> int:
-        total_tokens = 0
-        for entry in history:
-            content = entry.get("content", "")
-            total_tokens += tokenize_fn(content)
-        self.logger.debug(f"Calculated total tokens: {total_tokens}")
-        return total_tokens
-
-    def __init__(self):
-        # Initialize logger for the strategy
+    def __init__(self) -> None:
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.logger.debug("RemoveOldestStrategy initialized.")
 
-# Define PromptManager Interface Including Multi-Mode Functions
+    def reduce(self, history: List[Dict[str, str]], tokenize_fn: Any, token_limit: int) -> None:
+        while self.calculate_token_count(history, tokenize_fn) > token_limit and history:
+            removed_entry = history.pop(0)
+            self.logger.debug("Removed entry to reduce tokens: %s", removed_entry)
+
+    def calculate_token_count(self, history: List[Dict[str, str]], tokenize_fn: Any) -> int:
+        total_tokens: int = 0
+        for entry in history:
+            content: str = entry.get("content", "")
+            total_tokens += tokenize_fn(content)
+        self.logger.debug("Calculated total tokens: %d", total_tokens)
+        return total_tokens
+
+
 class PromptManager(ABC, Generic[H, E]):
-    """
-    Abstract base class for managing prompt histories and interactions with multi-mode support.
-    """
-    def __init__(self, initial_mode: Mode, reduction_strategy: ReductionStrategy):
+    def __init__(self, initial_mode: Mode, reduction_strategy: Optional[ReductionStrategy]) -> None:
         if reduction_strategy is None:
-            self.reduction_strategy = RemoveOldestStrategy()
+            self.reduction_strategy: ReductionStrategy = RemoveOldestStrategy()
         else:
             self.reduction_strategy = reduction_strategy
-        self.current_mode = initial_mode
-        self.template = GLOBAL_BASE_TEMPLATES[initial_mode.name]
-        # Initialize a history list for each mode
-        self.histories: Dict[Mode, List[Dict[str, str]]] = {
-            mode: [] for mode in Mode
-        }
+
+        self.current_mode: Mode = initial_mode
+        self.template: PromptTemplate = GLOBAL_BASE_TEMPLATES[initial_mode.name]
+        self.histories: Dict[Mode, List[Dict[str, str]]] = {mode: [] for mode in Mode}
+
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.logger.info(f"Initialized histories for modes: {[mode.name for mode in self.histories.keys()]}")
-        self.logger.debug(f"Initial mode set to {self.current_mode.name}")
+        self.logger.info(
+            "Initialized histories for modes: %s",
+            [mode.name for mode in self.histories.keys()]
+        )
+        self.logger.debug("Initial mode set to %s", self.current_mode.name)
 
     def set_mode(self, mode: Mode) -> None:
-        """
-        Set the current mode and update the corresponding prompt template.
-        """
         if mode not in self.histories:
-            self.logger.error(f"Attempted to set unsupported mode: {mode.name}")
+            self.logger.error("Attempted to set unsupported mode: %s", mode.name)
             raise ValueError(f"Mode {mode.name} is not supported for history management.")
         self.current_mode = mode
         self.template = GLOBAL_BASE_TEMPLATES[mode.name]
-        self.logger.info(f"Mode set to {self.current_mode.name}")
+        self.logger.info("Mode set to %s", self.current_mode.name)
 
     @abstractmethod
     def set_history(self, history: H) -> None:
-        """
-        Set the history for the current mode.
-        """
         pass
 
     @abstractmethod
     def empty_history(self) -> None:
-        """
-        Clear the history for the current mode.
-        """
         pass
 
     @abstractmethod
     def get_history(self) -> H:
-        """
-        Retrieve the current mode's history.
-        """
         pass
 
     @abstractmethod
     def get_last_entry(self) -> Optional[E]:
-        """
-        Retrieve the last entry in the current mode's history.
-        """
         pass
 
     @abstractmethod
     def add_user_entry(self, user_prompt: str) -> E:
-        """
-        Add a user prompt to the current mode's history.
-        """
         pass
 
     @abstractmethod
     def add_assistant_entry(self, ai_response: str) -> E:
-        """
-        Add an AI response to the current mode's history.
-        """
         pass
 
     @abstractmethod
     def count_history_tokens(self) -> int:
-        """
-        Count the total number of tokens in the current mode's history.
-        """
         pass
 
     @abstractmethod
     def count_tokens(self, text: str) -> int:
-        """
-        Tokenize the input text and return the token count.
-        """
         pass
 
     @abstractmethod
     def reduce_history(self, token_limit: int) -> None:
-        """
-        Reduce the current mode's history to fit within the token limit.
-        """
         pass
 
     @abstractmethod
     def pretty_print_history(self) -> str:
         pass
 
-    def get_system_prompt(self, context_data: Dict[str, str] = None) -> str:
-        """
-        Retrieve the formatted system prompt based on the current mode.
-        """
-        system_prompt = self.template.format_prompt(context_data)
-        self.logger.debug(f"System prompt retrieved: {system_prompt}")
+    def get_system_prompt(self, context_data: Optional[Dict[str, str]] = None) -> str:
+        system_prompt: str = self.template.format_prompt(context_data)
+        self.logger.debug("System prompt retrieved: %s", system_prompt)
         return system_prompt
 
     def get_timestamp(self) -> str:
-        # add the current day, date and time to the prompt
-        now = datetime.datetime.now(datetime.timezone.utc)
-        # Print in the desired format, e.g., "Es ist Montag, der 30.12.2024 um 13:48 UTC"
+        now: datetime.datetime = datetime.datetime.now(datetime.timezone.utc)
         return f"Es ist {now.strftime('%A')}, der {now.strftime('%d.%m.%Y')} um {now.strftime('%H:%M')} UTC. "
