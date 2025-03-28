@@ -14,7 +14,3 @@ class LlmInterface(BaseService, metaclass=ABCMeta):
     @abstractmethod
     async def chat(self, full_chat) -> AsyncGenerator[str, None]:
         pass
-
-    @abstractmethod
-    def get_prompt_manager(self) -> PromptManager:
-        pass

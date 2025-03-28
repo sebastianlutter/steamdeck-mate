@@ -257,4 +257,5 @@ class ServiceDiscovery:
             return None
 
         candidates.sort(key=lambda x: x.priority, reverse=True)
+        self.logger.info(f"type: {service_type}, return {candidates[0].name}")
         return candidates[0]

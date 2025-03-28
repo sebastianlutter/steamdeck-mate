@@ -6,9 +6,6 @@ import logging
 from urllib.parse import urlparse
 from ollama import Client
 from typing import Any, Dict, List, Optional, AsyncGenerator
-
-from mate.services.llm.prompt_manager_interface import Mode, PromptManager, RemoveOldestStrategy
-from mate.services.llm.prompt_manager_llama import LlamaPromptManager
 from mate.services.llm.llm_interface import LlmInterface
 
 
@@ -20,10 +17,6 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
         self.llm_provider_model: str = ollama_model
         self.client: Client = Client(host=self.llm_endpoint)
         self.model: str = self.llm_provider_model
-        self.prompt_manager: PromptManager = LlamaPromptManager(
-            initial_mode=Mode.CHAT,
-            reduction_strategy=RemoveOldestStrategy()
-        )
 
     async def chat(self, full_chat: List[Dict[str, str]]) -> AsyncGenerator[str, None]:
         print(f"LLM CHAT: {full_chat}")
@@ -35,9 +28,6 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
         for chunk in content:
             c = chunk["message"]["content"]
             yield c
-
-    def get_prompt_manager(self) -> PromptManager:
-        return self.prompt_manager
 
     def config_str(self) -> str:
         return f"Ollama Remote {self.name}: {self.model} on {self.llm_endpoint}."
