@@ -12,7 +12,7 @@ class PorcupineWakeWord(VoiceActivationInterface):
     def __init__(self) -> None:
         super().__init__()
         self.logger: logging.Logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.model_path: str = f"./{self.wakeword}_de_linux_v3_0_0.ppn"
+        self.model_path: str = f"./picovoice/{self.wakeword}_de_linux_v3_0_0.ppn"
 
         if not os.path.isfile(self.model_path):
             self.logger.error(
@@ -26,7 +26,7 @@ class PorcupineWakeWord(VoiceActivationInterface):
 
         self.porcupine = pvporcupine.create(
             keyword_paths=[self.model_path],
-            model_path="./porcupine_params_de.pv",
+            model_path="./picovoice/porcupine_params_de.pv",
             sensitivities=[self.wakeword_threshold / 500.0],
             access_key=os.getenv("PICOVOICE_ACCESS_KEY")
         )
