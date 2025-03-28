@@ -1,0 +1,63 @@
+name: mate-support-stack
+services:
+
+  ollama-llm:
+    image: ollama/ollama:latest
+    ports:
+      - 11434:11434
+    volumes:
+     - ollama-downloads:/root/.ollama
+     - ./llm/ollama-entrypoint.sh:/entrypoint.sh
+    pull_policy: always
+    tty: true
+    restart: always
+    environment:
+     - OLLAMA_KEEP_ALIVE=24h
+     - OLLAMA_HOST=0.0.0.0
+     - OLLAMA_MODELS=/root/.ollama/models
+     - OLLAMA_MODEL_DL=llama3.2:1b,llama3.2:3b
+    entrypoint: ["/usr/bin/bash", "/entrypoint.sh"]
+
+  tts-server:
+    image: ghcr.io/matatonic/openedai-speech-min
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./tts/voices:/app/voices
+      - ./tts/config:/app/config
+    environment:
+      TTS_HOME: "/app/voices"
+      HF_HOME: "/app/voices"
+      PRELOAD_MODEL: "tts_models/de/thorsten/vits"
+      LANGUAGE: "de_DE"
+      VOICE: "thorsten-low"
+      PIPER_VOICE: "thorsten-low"
+    command: ['python', 'speech.py', '--xtts_device', 'none']
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "1.0"
+
+#
+# available env vars, see:
+# https://github.com/fedirz/faster-whisper-server/blob/master/src/faster_whisper_server/config.py
+#
+  faster-whisper-server:
+    image: fedirz/faster-whisper-server:latest-cpu
+    restart: unless-stopped
+    ports:
+      - 8000:8000
+    volumes:
+      - hugging_face_cache:/root/.cache/huggingface
+    environment:
+      #- WHISPER__MODEL=Systran/faster-whisper-tiny
+      #- WHISPER__MODEL=Systran/faster-whisper-small
+      - WHISPER__MODEL=Systran/faster-whisper-medium
+      #- WHISPER__MODEL=Systran/faster-distil-whisper-large-v3
+      - WHISPER__COMPUTE_TYPE=int8
+      - DEFAULT_LANGUAGE=de
+
+volumes:
+  ollama-downloads:
+

@@ -1,0 +1,54 @@
+﻿tts-1:
+  alloy: # the default voice used mapped to thorsten
+#    model: voices/de_DE-thorsten-low.onnx
+    model: voices/de_DE-thorsten_emotional-medium.onnx
+    speaker:
+  thorsten-low:
+    model: voices/de_DE-thorsten-low.onnx
+    speaker:
+  thorsten-medium:
+    model: voices/de_DE-thorsten-medium.onnx
+    speaker:
+  thorsten-medium-emo:
+    model: voices/de_DE-thorsten_emotional-medium.onnx
+    speaker:
+  thorsten-high:
+    model: voices/de_DE-thorsten-high.onnx
+    speaker:
+  ramona-low:
+    model: voices/de_DE-thorsten_emotional-medium.onnx
+    speaker:
+tts-1-hd:
+  alloy-alt:
+    model: xtts
+    speaker: voices/alloy-alt.wav
+  alloy:
+    model: xtts
+    speaker: voices/alloy.wav
+  echo:
+    model: xtts
+    speaker: voices/echo.wav
+  fable:
+    model: xtts
+    speaker: voices/fable.wav
+  onyx:
+    model: xtts
+    speaker: voices/onyx.wav
+  nova:
+    model: xtts
+    speaker: voices/nova.wav
+  shimmer:
+    model: xtts
+    speaker: voices/shimmer.wav
+  me:
+    model: xtts_v2.0.2 # you can specify an older xtts version
+    speaker: voices/me.wav # this could be you
+    language: auto
+    enable_text_splitting: True
+    length_penalty: 1.0
+    repetition_penalty: 10
+    speed: 1.0
+    temperature: 0.75
+    top_k: 50
+    top_p: 0.85
+    comment: You can add a comment here also, which will be persistent and otherwise ignored.
