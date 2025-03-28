@@ -5,6 +5,7 @@ import websocket
 import threading
 import asyncio
 import logging
+from urllib.parse import urlparse
 from queue import Queue
 
 from mate.services.stt.stt_interface import STTInterface
@@ -48,19 +49,33 @@ dataset_bias = [
 
 class STTWhisperRemote(STTInterface):
 
-    async def check_availability(self) -> bool:
-        raise RuntimeError("Not implemented yet")
-
-    def __init__(self, name: str, priority: int):
-        super().__init__(name, priority)
+    def __init__(self):
+        super().__init__("WorkstationSTTWhisper", 100)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.url= self.stt_endpoint
+        self.stt_endpoint = "http://192.168.0.75:8000/v1/audio/transcriptions?language=de"
         # use the http endpoint for websocket
         self.ws_url = self.stt_endpoint.replace('http://','ws://')
         websocket.enableTrace(False)
         # if True then the transcription send to the API server is stored as recording_TIMESTAMP.wav
         self.store_wav = False
 
+    async def check_availability(self) -> bool:
+        # 1) Parse out the host and port
+        parsed = urlparse(self.stt_endpoint)
+        host = parsed.hostname
+        port = parsed.port
+
+        # 2) Check if we can connect to host:port
+        #    Using an asyncio open_connection for an async-friendly approach
+        try:
+            reader, writer = await asyncio.open_connection(host, port)
+            writer.close()
+            await writer.wait_closed()
+        except Exception as e:
+            print(f"[check_availability] Could not connect to host '{host}' on port {port}.")
+            print(f"    Reason: {e}")
+            return False
+        return True
 
     async def transcribe_stream(self, audio_stream: AsyncGenerator[bytes, None], websocket_on_close: Callable[[], None], websocket_on_open: Callable[[], None]) -> AsyncGenerator[str, None]:
         queue = Queue()  # Back channel for transcription results

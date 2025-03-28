@@ -7,12 +7,12 @@ from ollama import Client
 
 from mate.services.llm.prompt_manager_interface import Mode
 from mate.services.llm.prompt_manager_llama import LlamaPromptManager
-from mate.services.llm.llm_interface import LmmInterface
+from mate.services.llm.llm_interface import LlmInterface
 from mate.services.llm.prompt_manager_interface import PromptManager, RemoveOldestStrategy
 from typing import Any, Dict, Generic, Optional, TypeVar, List, AsyncGenerator
 
 
-class LmmOllamaRemote(LmmInterface, metaclass=abc.ABCMeta):
+class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
 
     def __init__(self, name: str, priority: int, endpoint: str, ollama_model: str):
         super().__init__(name, priority)
@@ -38,13 +38,13 @@ class LmmOllamaRemote(LmmInterface, metaclass=abc.ABCMeta):
         return self.prompt_manager
 
     def config_str(self) -> str:
-        print(f"Ollama Remote {self.name}: {self.model} on {self.llm_endpoint}. Status {'ok' if self.check_availability() else 'offline'}")
+        return f"Ollama Remote {self.name}: {self.model} on {self.llm_endpoint}."
 
     async def check_availability(self) -> bool:
         # 1) Parse out the host and port
         parsed = urlparse(self.llm_endpoint)
         host = parsed.hostname
-        port = parsed.port or 80  # default to port 80 if none found
+        port = parsed.port
 
         # 2) Check if we can connect to host:port
         #    Using an asyncio open_connection for an async-friendly approach
@@ -59,16 +59,26 @@ class LmmOllamaRemote(LmmInterface, metaclass=abc.ABCMeta):
 
         # 3) Check if /models endpoint is available and get the list of installed models
         try:
-            models_url = f"{parsed.scheme}://{host}:{port}/models"
+            models_url = f"{parsed.scheme}://{host}:{port}/api/tags"
             async with aiohttp.ClientSession() as session:
                 async with session.get(models_url) as resp:
                     if resp.status != 200:
-                        print(f"[check_availability] Could not retrieve models from {models_url}. "
-                              f"HTTP status: {resp.status}")
+                        print(
+                            f"[check_availability] Could not retrieve models from {models_url}. "
+                            f"HTTP status: {resp.status}"
+                        )
                         return False
                     data = await resp.json()
-                    # Expecting { "models": [...some list of model names...] }
-                    installed_models = data.get("models", [])
+
+                    # Expecting {
+                    #   "models": [
+                    #       {"name": "codellama:13b", ...},
+                    #       {"name": "llama3:latest", ...}
+                    #   ]
+                    # }
+                    #
+                    # Extract only the "name" field from each model dictionary
+                    installed_models = [m.get("name") for m in data.get("models", [])]
         except Exception as e:
             print(f"[check_availability] Failed while calling {models_url}.")
             print(f"    Reason: {e}")
@@ -82,10 +92,10 @@ class LmmOllamaRemote(LmmInterface, metaclass=abc.ABCMeta):
         # If we made it here, everything is OK
         return True
 
-class LocalhostOllamaRemote(LmmOllamaRemote):
+class LocalhostOllamaRemote(LlmOllamaRemote):
 
     config={
-        "name": "Steamdeck",
+        "name": "SteamdeckLLama3B",
         "priority": 0,
         "endpoint": "http://127.0.0.1:11434",
         "ollama_model": "llama3.1:3b"
@@ -96,10 +106,10 @@ class LocalhostOllamaRemote(LmmOllamaRemote):
 
 
 
-class WorkstationOllamaRemote(LmmOllamaRemote):
+class WorkstationOllamaRemote(LlmOllamaRemote):
 
     config={
-        "name": "Workstation-1080-Ti",
+        "name": "WorkstationLlama8b",
         "priority": 100,
         "endpoint": "http://192.168.0.75:11434",
         "ollama_model": "llama3.1:8b"

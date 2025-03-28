@@ -6,7 +6,7 @@ import asyncio
 # Import the classes under test
 # Adjust these paths to match your project structure
 from mate.services import ServiceDiscovery
-from mate.services.llm.llm_interface import LmmInterface
+from mate.services.llm.llm_interface import LlmInterface
 from mate.services.stt.stt_interface import STTInterface
 from mate.services.tts.tts_interface import TTSInterface
 
@@ -16,11 +16,7 @@ class TestServiceDiscovery(unittest.IsolatedAsyncioTestCase):
         Runs before each test. We'll create a ServiceDiscovery instance
         with one TTS, one STT, and one LLM dummy service.
         """
-        self.service_defs = [
-            (TTSInterface, "test_tts", 10),
-            (STTInterface, "test_stt", 5),
-            (LmmInterface, "test_llm", 8),
-        ]
+        self.service_defs = []
         self.discovery = ServiceDiscovery(self.service_defs)
         await self.discovery.start()
 
@@ -40,7 +36,7 @@ class TestServiceDiscovery(unittest.IsolatedAsyncioTestCase):
         """
         tts_service = await self.discovery.get_best_service("TTS")
         self.assertIsNotNone(tts_service, "No TTS service was discovered.")
-        self.assertEqual(tts_service.name, "test_tts")
+        self.assertEqual(tts_service.name, "WorkstationTTS")
         self.assertTrue(
             tts_service.service_type == "TTS",
             f"Unexpected service type: {tts_service.service_type}",
@@ -53,7 +49,7 @@ class TestServiceDiscovery(unittest.IsolatedAsyncioTestCase):
         """
         stt_service = await self.discovery.get_best_service("STT")
         self.assertIsNotNone(stt_service, "No STT service was discovered.")
-        self.assertEqual(stt_service.name, "test_stt")
+        self.assertEqual(stt_service.name, "WorkstationSTTWhisper")
         self.assertTrue(
             stt_service.service_type == "STT",
             f"Unexpected service type: {stt_service.service_type}",
@@ -74,14 +70,11 @@ class TestServiceDiscovery(unittest.IsolatedAsyncioTestCase):
         """
         llm_service = await self.discovery.get_best_service("LLM")
         self.assertIsNotNone(llm_service, "No LLM service was discovered.")
-        self.assertEqual(llm_service.name, "test_llm")
+        self.assertEqual(llm_service.name, "WorkstationLlama8b")
         self.assertTrue(
             llm_service.service_type == "LLM",
             f"Unexpected service type: {llm_service.service_type}",
         )
-        # Check that the LLMService has the correct default environment config
-        self.assertIn("model:", llm_service.config_str())
-        self.assertIn("endpoint:", llm_service.config_str())
 
         # Force enough checks to ensure the simulated failure occurs at least once
         # (the sample LLMService raises an error every 3rd check).

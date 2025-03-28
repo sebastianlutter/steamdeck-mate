@@ -3,6 +3,8 @@ import logging
 from mate.services.tts.tts_interface import TTSInterface
 from io import BytesIO
 import soundfile as sf
+from urllib.parse import urlparse
+import asyncio
 
 class TTSOpenedAISpeech(TTSInterface):
     """
@@ -10,14 +12,11 @@ class TTSOpenedAISpeech(TTSInterface):
     Audio is played back immediately using PyAudio without saving to disk.
     """
 
-    async def check_availability(self) -> bool:
-        pass
-
     def config_str(self) -> str:
         pass
 
     def __init__(self):
-        super().__init__(name="ThorstenTTS-OpenAI-API", priority=100)
+        super().__init__(name="WorkstationTTS", priority=100)
         self.tts_endpoint = "http://192.168.0.75:8001/v1"
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.client = openai.OpenAI(
@@ -25,6 +24,24 @@ class TTSOpenedAISpeech(TTSInterface):
             api_key="sk-111111111",
             base_url=self.tts_endpoint,
         )
+
+    async def check_availability(self) -> bool:
+        # 1) Parse out the host and port
+        parsed = urlparse(self.tts_endpoint)
+        host = parsed.hostname
+        port = parsed.port
+
+        # 2) Check if we can connect to host:port
+        #    Using an asyncio open_connection for an async-friendly approach
+        try:
+            reader, writer = await asyncio.open_connection(host, port)
+            writer.close()
+            await writer.wait_closed()
+        except Exception as e:
+            print(f"[check_availability] Could not connect to host '{host}' on port {port}.")
+            print(f"    Reason: {e}")
+            return False
+        return True
 
     def speak_sentence(self, sentence: str):
         # Launch a thread to handle speech synthesis and playback

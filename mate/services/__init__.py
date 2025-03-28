@@ -108,20 +108,14 @@ class ServiceDiscovery:
                     continue
 
                 # Inspect all classes in the module
+                ignore_classes = ["LlmOllamaRemote"]
                 for name, obj in inspect.getmembers(mod, inspect.isclass):
+                    if name in ignore_classes:
+                        continue
                     # Check if it's a subclass of BaseService but not BaseService itself
-                    if issubclass(obj, BaseService) and obj is not BaseService:
-                        # Optionally, you could also check specifically for
-                        # TTSService, STTService, LLMService, etc.:
-                        #
-                        # if issubclass(obj, TTSService) and obj is not TTSService:
-                        #     ...
-                        #
-                        # We'll just do BaseService in this example.
-                        #
-                        # We auto-generate a name from the class, and set a default priority
+                    if issubclass(obj, BaseService) and obj is not BaseService and not inspect.isabstract(obj):
                         service_name = f"{obj.__name__}"
-                        default_priority = 5
+                        default_priority = -1
                         discovered.append((obj, service_name, default_priority))
 
         return discovered
@@ -166,17 +160,19 @@ class ServiceDiscovery:
         Run one iteration of checks across all known service definitions.
         """
         for service_class, name, priority in self.service_definitions:
+            #print(f"service_class={service_class}, name={name}, priority={priority}")
             async with self._services_lock:
                 # 1) If service instance doesn't exist, attempt to create it
                 if name not in self.services:
                     try:
-                        instance = service_class(name, priority)
+                        instance = service_class()
                         is_available = await instance.check_availability()
                         self.services[name] = {
                             "instance": instance,
                             "available": is_available
                         }
                     except Exception as e:
+                        print(e)
                         # If creation or check fails, mark unavailable
                         self.services[name] = {
                             "instance": None,
@@ -201,7 +197,6 @@ class ServiceDiscovery:
         lines.append("-" * 55)
 
         # Acquire lock to read the latest data safely
-
         async with self._services_lock:
             data = [(srv_name,
                      srv_data["instance"].service_type if srv_data["instance"] else "N/A",

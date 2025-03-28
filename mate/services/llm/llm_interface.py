@@ -6,7 +6,7 @@ from mate.services import BaseService
 from mate.services.llm.prompt_manager_interface import PromptManager
 
 
-class LmmInterface(BaseService, metaclass=ABCMeta):
+class LlmInterface(BaseService, metaclass=ABCMeta):
 
     def __init__(self, name: str, priority: int):
         super().__init__(name, "LLM", priority)
