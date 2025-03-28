@@ -48,8 +48,13 @@ class SteamdeckMate:
         """
         Mocked asynchronous LLM call.
         """
-        await asyncio.sleep(0.5)
-        return f"Response to '{text}'"
+        llm_provider = await self.service_discovery.get_best_service("LLM")
+        prompt_manager = llm_provider.get_prompt_manager()
+        full_res = ''
+        async for res in llm_provider.chat(prompt_manager.get_history()):
+            print(f"{res}")
+            full_res += res
+        return f"User: '{text}'\nAI: {full_res}"
 
     async def speak_response(self, response: str):
         """
@@ -58,17 +63,6 @@ class SteamdeckMate:
         Here, we'll just pretend we have a float32 NumPy array as TTS output.
         """
         print(f"[Mate] Speaking: {response}")
-
-        # Simulate generating a short audio clip (1 sec of random noise)
-        # In real usage, replace with your TTS output (e.g., a WAV file).
-        tts_audio = np.random.randn(16000).astype(np.float32)  # 1 second at 16 kHz
-
-        # Enqueue the audio for playback
-        self.soundcard.play_audio(sample_rate=16000, audio_data=tts_audio)
-
-        # Wait until playback finishes
-        await self.soundcard.wait_until_playback_finished()
-
         print("[Mate] Done speaking.")
 
     async def stop(self):

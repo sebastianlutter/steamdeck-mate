@@ -39,7 +39,7 @@ class TTSOpenedAISpeech(TTSInterface):
             writer.close()
             await writer.wait_closed()
         except Exception as e:
-            print(f"[check_availability] Could not connect to host '{host}' on port {port}.")
+            print(f"[check_availability {self.name}] Could not connect to host '{host}' on port {port}.")
             print(f"    Reason: {e}")
             return False
         return True

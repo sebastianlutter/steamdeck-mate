@@ -53,7 +53,7 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
             writer.close()
             await writer.wait_closed()
         except Exception as e:
-            print(f"[check_availability] Could not connect to host '{host}' on port {port}.")
+            print(f"[check_availability {self.name}] Could not connect to host '{host}' on port {port}.")
             print(f"    Reason: {e}")
             return False
 
@@ -64,7 +64,7 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
                 async with session.get(models_url) as resp:
                     if resp.status != 200:
                         print(
-                            f"[check_availability] Could not retrieve models from {models_url}. "
+                            f"[check_availability {self.name}] Could not retrieve models from {models_url}. "
                             f"HTTP status: {resp.status}"
                         )
                         return False
@@ -80,13 +80,13 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
                     # Extract only the "name" field from each model dictionary
                     installed_models = [m.get("name") for m in data.get("models", [])]
         except Exception as e:
-            print(f"[check_availability] Failed while calling {models_url}.")
+            print(f"[check_availability {self.name}] Failed while calling {models_url}.")
             print(f"    Reason: {e}")
             return False
 
         # 4) Check if the requested model is in the installed models
         if self.model not in installed_models:
-            print(f"[check_availability] Model '{self.model}' not found in installed models: {installed_models}")
+            print(f"[check_availability {self.name}] Model '{self.model}' not found in installed models: {installed_models}")
             return False
 
         # If we made it here, everything is OK
@@ -98,7 +98,7 @@ class LocalhostOllamaRemote(LlmOllamaRemote):
         "name": "SteamdeckLLama3B",
         "priority": 0,
         "endpoint": "http://127.0.0.1:11434",
-        "ollama_model": "llama3.1:3b"
+        "ollama_model": "llama3.2:3b"
     }
 
     def __init__(self):
