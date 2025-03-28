@@ -104,7 +104,7 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
         return True
 
 
-class LocalhostOllamaRemote(LlmOllamaRemote):
+class SteamdeckOllamaRemote(LlmOllamaRemote):
     config: Dict[str, Any] = {
         "name": "SteamdeckLLama3B",
         "priority": 0,
