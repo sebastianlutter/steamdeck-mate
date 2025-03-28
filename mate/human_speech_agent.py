@@ -5,6 +5,7 @@ import os
 import io
 import hashlib
 import logging
+import asyncio
 from pydub import AudioSegment
 from typing import AsyncGenerator, Tuple, Any
 import soundfile as sf
@@ -67,98 +68,99 @@ class HumanSpeechAgent:
             "Das war unverständlich, bitte wiederholen"
         ]
         self.explain_sentence = "Sag das wort computer um zu starten."
-        self._warmup_cache()
 
-    def engage_input_beep(self) -> None:
+    async def engage_input_beep(self) -> None:
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio("sounds/deskviewerbeep.mp3")
-        self.soundcard.play_audio(sample_rate, audio_buffer)
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
 
-    def beep_positive(self) -> None:
+    async def beep_positive(self) -> None:
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio("sounds/computerbeep_26.mp3")
-        self.soundcard.play_audio(sample_rate, audio_buffer)
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
 
-    def beep_error(self) -> None:
+    async def beep_error(self) -> None:
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio("sounds/denybeep1.mp3")
-        self.soundcard.play_audio(sample_rate, audio_buffer)
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
 
-    def processing_sound(self) -> None:
+    async def processing_sound(self) -> None:
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio("sounds/processing.mp3")
-        self.soundcard.play_audio(sample_rate, audio_buffer)
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
 
-    def say_abort_speech(self) -> None:
-        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
-        tts_provider.set_stop_signal()
-        tts_provider.soundcard.stop_playback()
+    async def say_abort_speech(self) -> None:
+        tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
+        await asyncio.to_thread(tts_provider.set_stop_signal)
+        await asyncio.to_thread(tts_provider.soundcard.stop_playback)
         hi_phrase = random.choice(self.abort_speech_choices)
         mp3_path = self._get_cache_file_name(hi_phrase)
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio(mp3_path)
-        self.soundcard.play_audio(sample_rate, audio_buffer)
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
 
-    def say_init_greeting(self) -> None:
+    async def say_init_greeting(self) -> None:
         hi_phrase = random.choice(self.init_greetings)
         mp3_path = self._get_cache_file_name(hi_phrase)
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio(mp3_path)
-        self.soundcard.play_audio(sample_rate, audio_buffer)
-        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
-        tts_provider.speak(f"Ich höre auf den Namen {self.voice_activator.wakeword}")
-        tts_provider.wait_until_done()
-        self.soundcard.wait_until_playback_finished()
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
+        tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
+        await asyncio.to_thread(tts_provider.speak, f"Ich höre auf den Namen {self.voice_activator.wakeword}")
+        await asyncio.to_thread(tts_provider.wait_until_done)
+        await asyncio.to_thread(self.soundcard.wait_until_playback_finished)
 
-    def say_hi(self) -> None:
+    async def say_hi(self) -> None:
         hi_phrase = random.choice(self.hi_choices)
         mp3_path = self._get_cache_file_name(hi_phrase)
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio(mp3_path)
         self.logger.info("say_hi: %s", hi_phrase)
-        self.soundcard.play_audio(sample_rate, audio_buffer)
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
 
-    def say_bye(self, message: str = "") -> None:
+    async def say_bye(self, message: str = "") -> None:
         bye_phrase = random.choice(self.bye_choices)
         mp3_path = self._get_cache_file_name(bye_phrase)
         self.logger.info("say_bye: %s%s", message, bye_phrase)
-        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
+        tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
         if message != "":
-            tts_provider.speak(message)
-        tts_provider.wait_until_done()
-        self.soundcard.play_audio(sample_rate=mp3_path, audio_data=bye_phrase)  # Will fix below
+            await asyncio.to_thread(tts_provider.speak, message)
+        await asyncio.to_thread(tts_provider.wait_until_done)
+        # Assuming that the correct call should load the bye audio instead of using bye_phrase as data.
+        sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio(mp3_path)
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
 
-    def say_did_not_understand(self) -> None:
+    async def say_did_not_understand(self) -> None:
         did_not_understand_phrase = random.choice(self.did_not_understand)
         mp3_path = self._get_cache_file_name(did_not_understand_phrase)
         sample_rate, audio_buffer = self._load_mp3_to_wav_bytesio(mp3_path)
         self.logger.info("say_did_not_understand: %s", did_not_understand_phrase)
-        self.soundcard.play_audio(sample_rate, audio_buffer)
+        await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
 
-    def say(self, message: str) -> None:
+    async def say(self, message: str) -> None:
         self.logger.debug("say: %s", message)
-        tts_provider = self.service_discovery.get_best_service("TTS")
-        tts_provider.speak(message)
+        tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
+        await asyncio.to_thread(tts_provider.speak, message)
 
-    def skip_all_and_say(self, message: str) -> None:
+    async def skip_all_and_say(self, message: str) -> None:
         self.logger.info("Skip all and say: %s", message)
-        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
-        tts_provider.set_stop_signal()
-        tts_provider.wait_until_done()
-        time.sleep(0.2)
-        tts_provider.clear_stop_signal()
-        tts_provider.speak(message)
+        tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
+        await asyncio.to_thread(tts_provider.set_stop_signal)
+        await asyncio.to_thread(tts_provider.wait_until_done)
+        await asyncio.sleep(0.2)
+        await asyncio.to_thread(tts_provider.clear_stop_signal)
+        await asyncio.to_thread(tts_provider.speak, message)
 
-    def wait_until_talking_finished(self) -> None:
+    async def wait_until_talking_finished(self) -> None:
         self.logger.info("block_until_talking_finished: blocking")
-        tts_provider: TTSInterface = self.service_discovery.get_best_service("TTS")
+        tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
         c = 0
         while c < 2:
             c += 1
-            tts_provider.wait_until_done()
-            tts_provider.soundcard.wait_until_playback_finished()
+            await asyncio.to_thread(tts_provider.wait_until_done)
+            await asyncio.to_thread(tts_provider.soundcard.wait_until_playback_finished)
         self.logger.info("block_until_talking_finished: unblocking")
 
     async def get_human_input(self, wait_for_wakeword: bool = True) -> AsyncGenerator[str, None]:
         if wait_for_wakeword:
-            self.soundcard.stop_recording()
-            self.soundcard.wait_until_playback_finished()
-            self.engage_input_beep()
+            await asyncio.to_thread(self.soundcard.stop_recording)
+            await asyncio.to_thread(self.soundcard.wait_until_playback_finished)
+            await self.engage_input_beep()
             await self.voice_activator.listen_for_wake_word(stop_signal=None)
-            self.beep_positive()
+            await self.beep_positive()
 
         def on_close_ws_callback() -> None:
             self.logger.debug("get_human_input.on_close_ws_callback: websocket closed")
@@ -166,7 +168,7 @@ class HumanSpeechAgent:
         def on_ws_open() -> None:
             self.logger.debug("on_ws_open: Should say_hi now ws is opened:")
 
-        stt_provider: STTInterface = self.service_discovery.get_best_service("STT")
+        stt_provider: STTInterface = await self.service_discovery.get_best_service("STT")
         async for text in stt_provider.transcribe_stream(
             audio_stream=self.start_recording(),
             websocket_on_close=on_close_ws_callback,
@@ -180,7 +182,7 @@ class HumanSpeechAgent:
         async for wav_chunk in self.soundcard.get_record_stream():
             yield wav_chunk
 
-    def _warmup_cache(self) -> None:
+    async def warmup_cache(self) -> None:
         os.makedirs("tts_cache", exist_ok=True)
         all_choices = (
             self.hi_choices
@@ -191,19 +193,22 @@ class HumanSpeechAgent:
             + self.abort_speech_choices
         )
         for sentence in tqdm(all_choices, desc="Warmup cache with hi and bye phrases"):
-            file_name = self._get_cache_file_name(sentence)
+            file_name = await self._get_cache_file_name(sentence)
             if not os.path.exists(file_name):
-                tts_provider = self.service_discovery.get_best_service("TTS")
-                tts_provider.render_sentence(
+                tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
+                print(type(tts_provider))
+                # Offload the TTS rendering to a thread
+                await asyncio.to_thread(
+                    tts_provider.render_sentence,
                     sentence=sentence, store_file_name=file_name, output_format="mp3"
                 )
 
-    def _get_cache_file_name(self, sentence: str) -> str:
+    async def _get_cache_file_name(self, sentence: str) -> str:
         hash_obj = hashlib.md5(sentence.encode("utf-8"))
         hash_str = hash_obj.hexdigest()[:8]
         return os.path.join("tts_cache/", f"{hash_str}.mp3")
 
-    def _load_mp3_to_wav_bytesio(self, mp3_path: str) -> Tuple[int, Any]:
+    async def _load_mp3_to_wav_bytesio(self, mp3_path: str) -> Tuple[int, Any]:
         audio_segment = AudioSegment.from_mp3(mp3_path)
         wav_bytes = io.BytesIO()
         audio_segment.export(wav_bytes, format="wav")
@@ -211,21 +216,22 @@ class HumanSpeechAgent:
         data, sample_rate = sf.read(wav_bytes, dtype="float32")
         return sample_rate, data
 
-    def start_speech_interrupt_thread(self, ext_stop_signal: threading.Event) -> None:
+    async def start_speech_interrupt_thread(self, ext_stop_signal: threading.Event) -> None:
         def stop_speech() -> None:
-            self.say_abort_speech()
+            # Note: if say_abort_speech is to be awaited, it must be scheduled properly.
+            asyncio.run(self.say_abort_speech())
 
         self.logger.info("Start speech interrupt thread")
         self.interrupt_speech_thread = InterruptSpeechThread(
             stop_event=ext_stop_signal, va_provider=self.voice_activator, on_stop_callback=stop_speech
         )
-        self.interrupt_speech_thread.start()
+        await asyncio.to_thread(self.interrupt_speech_thread.start)
 
-    def stop_speech_interrupt_thread(self) -> None:
+    async def stop_speech_interrupt_thread(self) -> None:
         self.logger.info("Stopping speech interrupt thread")
         if self.interrupt_speech_thread is not None:
             self.logger.debug("Signaling the speech interrupt thread to stop...")
-            self.interrupt_speech_thread.stop()
+            await asyncio.to_thread(self.interrupt_speech_thread.stop)
             self.interrupt_speech_thread = None
             self.logger.info("Speech interrupt thread stopped.")
         else:

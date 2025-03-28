@@ -146,6 +146,8 @@ class ServiceDiscovery:
         Start periodic service availability checks in the background.
         """
         self._stop_event.clear()
+        # Run one full scan and wait for it to finish.
+        await self._check_services_once()
         self._update_task = asyncio.create_task(self._update_loop())
 
     async def stop(self) -> None:

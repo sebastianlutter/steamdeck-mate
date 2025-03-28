@@ -1,4 +1,7 @@
 from dotenv import load_dotenv
+
+from mate.services.llm.prompt_manager_llama import LlamaPromptManager
+
 load_dotenv()
 
 import asyncio
@@ -36,12 +39,13 @@ class SteamdeckMate:
         self.service_discovery: ServiceDiscovery = ServiceDiscovery()
         self.human_speech_agent = HumanSpeechAgent()
         self.status = Mode.CHAT
-        self.prompt_manager = PromptManager(initial_mode=Mode.CHAT,
+        self.prompt_manager = LlamaPromptManager(initial_mode=Mode.CHAT,
                                             reduction_strategy=RemoveOldestStrategy())
 
     async def listen_and_choose_mode(self) -> None:
         await self.service_discovery.start()
         await self.service_discovery.print_status_table()
+        await self.human_speech_agent.warmup_cache()
 
         self.logger.info("Starting to listen...")
         self.human_speech_agent.say_init_greeting()
@@ -67,7 +71,7 @@ class SteamdeckMate:
 
     async def ask_llm(self, text: str, stream_sentences: bool) -> AsyncGenerator[str, None]:
         self.prompt_manager.add_user_entry(text)
-        llm_provider: LlmInterface = self.service_discovery.get_best_service('LLM')
+        llm_provider: LlmInterface = await self.service_discovery.get_best_service('LLM')
         response = ""
         sentence_buffer = ""
         # send to LLM and stream response
