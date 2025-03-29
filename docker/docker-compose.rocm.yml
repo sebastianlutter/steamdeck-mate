@@ -1,0 +1,78 @@
+name: mate-support-stack-rocm
+services:
+
+  ollama-llm:
+    image: ollama/ollama:rocm
+    container_name: ollama-llm
+    ports:
+      - 11434:11434
+    volumes:
+     - ollama-downloads:/root/.ollama
+     - ./llm/ollama-entrypoint.sh:/entrypoint.sh
+    tty: true
+    restart: always
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_MODELS=/root/.ollama/models
+      - OLLAMA_MODEL_DL=llama3.2:3b,llama3.1:8b
+      - HSA_OVERRIDE_GFX_VERSION=10.3.0
+    entrypoint: ["/usr/bin/bash", "/entrypoint.sh"]
+    devices:
+      - /dev/dri
+      - /dev/kfd
+    security_opt:
+      - seccomp:unconfined
+
+  tts-server:
+    image: ghcr.io/matatonic/openedai-speech-rocm
+    env_file: speech.env
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./tts/voices:/app/voices
+      - ./tts/config:/app/config
+    # To install as a service
+    restart: unless-stopped
+    environment:
+      TTS_HOME: "/app/voices"
+      HF_HOME: "/app/voices"
+      PRELOAD_MODEL: "tts_models/de/thorsten/vits"
+      LANGUAGE: "de_DE"
+      VOICE: "thorsten-medium"
+      PIPER_VOICE: "thorsten-medium"
+    # For AMD GPU (ROCm) Support
+    cap_add:
+      - SYS_PTRACE
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    security_opt:
+      - seccomp=unconfined
+    group_add:
+      - video
+      - audio
+    ipc: host
+    command: [ 'python', 'speech.py', '--xtts_device', 'none' ]
+
+#
+# available env vars, see:
+# https://github.com/fedirz/faster-whisper-server/blob/master/src/faster_whisper_server/config.py
+# successor: https://github.com/speaches-ai/speaches
+  faster-whisper-server:
+    image: fedirz/faster-whisper-server:latest-cpu
+    #image: ghcr.io/speaches-ai/speaches:latest-cpu
+    restart: unless-stopped
+    ports:
+      - 8000:8000
+    volumes:
+      - hugging_face_cache:/root/.cache/huggingface
+    environment:
+      #- WHISPER__MODEL=Systran/faster-whisper-tiny
+      #- WHISPER__MODEL=Systran/faster-whisper-small
+      - WHISPER__MODEL=Systran/faster-whisper-medium
+      #- WHISPER__MODEL=Systran/faster-distil-whisper-large-v3
+      #- WHISPER__MODEL=primeline/whisper-tiny-german
+      #- WHISPER__MODEL=aseifert/faster-whisper-large-v3-turbo-german
+      - WHISPER__COMPUTE_TYPE=int8
+      - DEFAULT_LANGUAGE=de
