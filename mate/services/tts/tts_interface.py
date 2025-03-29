@@ -87,6 +87,7 @@ class TTSInterface(BaseService, metaclass=abc.ABCMeta):
             # Notify condition in case someone is waiting and we want them aware queue changed
             with self._condition:
                 self._condition.notify_all()
+        self.wait_until_done()
 
     def set_stop_signal(self):
         """

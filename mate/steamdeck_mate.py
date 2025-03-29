@@ -18,7 +18,7 @@ from mate.services import ServiceDiscovery, PromptManager
 from mate.services.llm.llm_interface import LlmInterface
 from mate.services.llm.prompt_manager_interface import Mode, RemoveOldestStrategy
 from mate.services.tts.tts_interface import TTSInterface
-from mate.utils import clean_str_from_markdown
+from mate.utils import clean_str_from_markdown, is_sane_input_german
 
 #format_string = (
 #    "%(asctime)s - [Logger: %(name)s] - %(levelname)s - %(filename)s:%(lineno)d in %(funcName)s() - %(message)s"
@@ -43,28 +43,41 @@ class SteamdeckMate:
                                             reduction_strategy=RemoveOldestStrategy())
 
     async def listen_and_choose_mode(self) -> None:
-        await self.service_discovery.start()
-        await self.service_discovery.print_status_table()
+        discovery_routine = self.service_discovery.start()
         await self.human_speech_agent.warmup_cache()
-
+        await discovery_routine
+        await self.service_discovery.print_status_table()
         self.logger.info("Starting to listen...")
-        self.human_speech_agent.say_init_greeting()
-        self.human_speech_agent.wait_until_talking_finished()
+        await self.human_speech_agent.say_init_greeting()
+        wake_word = True
         while True:
             try:
                 # wait for wake word, then transcribe user input
                 full_text = ''
-                #async for text in self.human_speech_agent.get_human_input(
-                #        wait_for_wakeword=True
-                #):
-                #    full_text += text
-                full_text = "Wer bist du und was ist deine Aufgabe?"
+                async for text in self.human_speech_agent.get_human_input(
+                        wait_for_wakeword=wake_word
+                ):
+                    full_text += text
+                if not is_sane_input_german(full_text):
+                    self.logger.info(f"Got input: \"{full_text}\", this is garbage. Ignore it and listen again")
+                    await self.human_speech_agent.beep_error()
+                    wake_word = False
+                    continue
+                else:
+                    wake_word = True
                 # give user input text to prompt manager
+                processing_sound_routine = self.human_speech_agent.processing_sound()
                 async for sentence in self.ask_llm(text=full_text, stream_sentences=True):
-                    print(f"Got sentence: {sentence}")
+                    tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
+                    tts_provider.speak(sentence)
+                await processing_sound_routine
+            except KeyboardInterrupt as e:
+                self.soundcard.close()
+                self.human_speech_agent.stop_signal.set()
+                self.logger.info("KeyboardInterrupt: Stop processing")
+                break
             except BaseException as e:
                 self.logger.error("got error", exc_info=True)
-            except KeyboardInterrupt as e:
                 raise e
             finally:
                 self.logger.info("Recording loop has ended.")

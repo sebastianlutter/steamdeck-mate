@@ -1,7 +1,7 @@
 import abc
 import os
-import asyncio
 import aiohttp
+
 import logging
 from urllib.parse import urlparse
 from ollama import Client
@@ -33,35 +33,15 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
         return f"Ollama Remote {self.name}: {self.model} on {self.llm_endpoint}."
 
     async def check_availability(self) -> bool:
+        if not await self.__check_remote_endpoint__(self.llm_endpoint):
+            return False
         parsed = urlparse(self.llm_endpoint)
         host: Optional[str] = parsed.hostname
         port: Optional[int] = parsed.port
-
-        if not host or not port:
-            self.logger.warning(
-                "[check_availability %s] Invalid endpoint: %s (missing host or port)",
-                self.name,
-                self.llm_endpoint
-            )
-            return False
-
-        try:
-            reader, writer = await asyncio.open_connection(host, port)
-            writer.close()
-            await writer.wait_closed()
-        except Exception as e:
-            self.logger.warning(
-                "[check_availability %s] Could not connect to host '%s' on port %s. Reason: %s",
-                self.name,
-                host,
-                port,
-                e
-            )
-            return False
-
         models_url: str = f"{parsed.scheme}://{host}:{port}/api/tags"
         try:
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=2)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(models_url) as resp:
                     if resp.status != 200:
                         self.logger.warning(
@@ -81,7 +61,6 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
                 e
             )
             return False
-
         if self.model not in installed_models:
             self.logger.warning(
                 "[check_availability %s] Model '%s' not found in installed models: %s",

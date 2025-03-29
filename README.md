@@ -58,37 +58,6 @@ This is meant to evolve into a more robust assistant capable of real Speech-To-T
 
 ---
 
-## Project Structure
-
-```plaintext
-steamdeck_mate/
-├─ mate/
-│  ├─ __init__.py
-│  ├─ steamdeck_mate.py       # The SteamdeckMate class
-│  └─ audio/
-│     └─ soundcard_pyaudio.py # The SoundCard class
-├─ tests/
-│  ├─ __init__.py
-│  └─ test_soundcard.py       # Pytest tests for the SoundCard
-├─ main.py                    # Entry-point script that runs the asyncio loop
-└─ README.md                  # This file
-```
-
-### `soundcard_pyaudio.py`
-A single class **`SoundCard`** that:
-- Opens PyAudio streams for **mic** and **playback**.
-- Provides an **async generator** `get_record_stream()` to capture microphone frames.
-- Provides `play_audio()` to enqueue audio data for async playback.
-- Allows graceful shutdown via `stop_recording()`, `stop_playback()`, and `close()`.
-
-### `steamdeck_mate.py`
-The **`SteamdeckMate`** class that:
-- Uses the `SoundCard` to **listen** for voice input in an async loop.
-- Mocks an LLM call in `ask_llm(...)`.
-- Simulates TTS by generating random noise in `speak_response(...)`, then enqueues it for playback.
-
----
-
 ## How to Run
 
 1. Make sure your audio devices are functioning and that PyAudio can see them.  
@@ -103,6 +72,42 @@ The **`SteamdeckMate`** class that:
 
 ---
 
+# Audio Device Selector
+
+This Python script provides an interactive, terminal-based interface for selecting and testing audio input (recording) and output (playback) devices. It uses the `curses` library to render a text-based menu, and `pyaudio` to interact with the system's audio devices. The script not only allows you to choose devices but also displays useful details such as the device's default sample rate and number of channels, and includes functionality to test both playback and recording capabilities.
+
+## Purpose
+
+- **Device Selection:** Easily select which audio devices to use for playback and recording.
+- **Device Testing:** Test selected devices by playing a test tone or recording and then playing back your voice.
+- **Environment Setup:** Optionally save the chosen device IDs to a `.env` file for easy configuration in other applications.
+
+## Usage
+
+1. **Run the Script:**  
+   Simply execute the script in your terminal:
+   ```bash
+   python audio_device_picker.py
+   ```
+
+2. **Select a Playback Device:**  
+   The script will first display a list of available output devices. Each device entry shows:
+   - **ID:** The device index.
+   - **Name:** The device's name.
+   - **SR:** The default sample rate (Hz).
+   - **Ch:** The number of channels available.  
+   Use the arrow keys to navigate, press **T** to test the device, **ENTER** to select, or **B** to go back.
+
+3. **Test Playback Device:**  
+   Select the entry and press `t`. A sinus tone is played back. When the correct device is found press `enter` to select.
+
+4. **Select a Recording Device:**  
+   Next, choose the input device. Press `t` to make a test recording and play it back using the previous selected playback device.  When the correct device is found press `enter` to select.
+
+5. **Final Testing & Confirmation:**  
+   A summary screen allows you to test both devices again, reselect devices, or exit. Once satisfied, you can opt to save the device IDs in a `.env` file for future reference.
+
+
 ## Testing
 
 We use [pytest](https://docs.pytest.org/) for testing. Our tests live in a dedicated `tests/` folder at the same level as `mate/`.  
@@ -115,37 +120,6 @@ We use [pytest](https://docs.pytest.org/) for testing. Our tests live in a dedic
    ```bash
    pytest --maxfail=1 -v
    ```
-3. The tests in `tests/test_soundcard.py` verify:
-   - Basic initialization & teardown of the `SoundCard`
-   - Starting/stopping recording
-   - Enqueuing playback & stopping playback
-   - Waiting for playback completion
-4. Note that these tests do **not** confirm actual audio data or hardware. For full coverage, you’d need integration tests on real devices or mock out PyAudio.
-
----
-
-## Demo Output
-
-When running `main.py`, you’ll see something like:
-```
-[Mate] Starting to listen...
-[Mate] Heard microphone audio chunk... (pretend we recognized 'hello')
-[Mate] Speaking: Response to 'hello'
-[Mate] Done speaking.
-[Mate] Stopped.
-```
-You might also see ALSA/JACK warnings if those aren’t fully configured. They’re usually not fatal.
-
----
-
-## Future Plans
-
-- **Real Speech Recognition**: Integrate with a local engine (e.g. Vosk) or an online service (e.g. OpenAI Whisper).
-- **Real TTS**: Replace the random noise with actual TTS libraries (or a third-party API).
-- **Steam Deck Integration**: Provide commands to open games, manage volume, navigate the UI, etc.
-- **Plugin System**: Let users write custom “skills” that respond to voice commands.
-
----
 
 ## Contributing
 

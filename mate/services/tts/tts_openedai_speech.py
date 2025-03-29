@@ -27,22 +27,7 @@ class TTSOpenedAISpeech(TTSInterface):
         self.voice = voice
 
     async def check_availability(self) -> bool:
-        # 1) Parse out the host and port
-        parsed = urlparse(self.tts_endpoint)
-        host = parsed.hostname
-        port = parsed.port
-
-        # 2) Check if we can connect to host:port
-        #    Using an asyncio open_connection for an async-friendly approach
-        try:
-            reader, writer = await asyncio.open_connection(host, port)
-            writer.close()
-            await writer.wait_closed()
-        except Exception as e:
-            print(f"[check_availability {self.name}] Could not connect to host '{host}' on port {port}.")
-            print(f"    Reason: {e}")
-            return False
-        return True
+        return await self.__check_remote_endpoint__(self.tts_endpoint)
 
     def speak_sentence(self, sentence: str):
         # Launch a thread to handle speech synthesis and playback
@@ -98,7 +83,7 @@ class SteamdeckTTSOpenedAI(TTSOpenedAISpeech):
     config = {
         "name": "SteamdeckTTS",
         "priority": 0,
-        "endpoint": "http://192.168.0.75:8001/v1",
+        "endpoint": "http://127.0.0.1:8001/v1",
         "voice": "thorsten-low"
     }
 

@@ -1,6 +1,6 @@
 import json
 import time
-from typing import Callable, AsyncGenerator, Optional
+from typing import Callable, AsyncGenerator, Optional, Any
 import websocket
 import threading
 import asyncio
@@ -57,23 +57,7 @@ class STTWhisperRemote(STTInterface):
         self.store_wav: bool = False
 
     async def check_availability(self) -> bool:
-        parsed = urlparse(self.stt_endpoint)
-        host: Optional[str] = parsed.hostname
-        port: Optional[int] = parsed.port
-        if not host or not port:
-            self.logger.warning("Invalid endpoint: %s", self.stt_endpoint)
-            return False
-        try:
-            reader, writer = await asyncio.open_connection(host, port)
-            writer.close()
-            await writer.wait_closed()
-        except Exception as e:
-            self.logger.warning(
-                "[check_availability %s] Could not connect to host '%s' on port %s. Reason: %s",
-                self.name, host, port, e
-            )
-            return False
-        return True
+        return await self.__check_remote_endpoint__(self.stt_endpoint)
 
     async def transcribe_stream(
         self,
@@ -99,7 +83,7 @@ class STTWhisperRemote(STTInterface):
         thread_stop_event: threading.Event = threading.Event()
 
         def on_open(wsc2: WebSocket) -> None:
-            self.logger.debug("Successfully connected websocket %s", self.ws_url)
+            self.logger.info("Successfully connected websocket %s", self.ws_url)
             websocket_on_open()
 
             def send_audio_chunks() -> None:
@@ -147,7 +131,7 @@ class STTWhisperRemote(STTInterface):
             thread_stop_event.set()
 
         def on_close(ws_obj: WebSocket, i1: Any, i2: Any) -> None:
-            self.logger.debug("WebSocket closed: %s, %s", i1, i2)
+            self.logger.info("WebSocket closed: %s, %s", i1, i2)
             queue_data.put(None)
             websocket_on_close()
             thread_stop_event.set()
@@ -177,8 +161,9 @@ class STTWhisperRemote(STTInterface):
 
             ws_thread.join()
             self.logger.debug("Transcription queue closed")
-        except KeyboardInterrupt:
-            raise
+        except KeyboardInterrupt as e:
+            self.logger.info("Got KeyboarInterrupt")
+            raise e
         except BaseException as e:
             self.logger.error("Error: %s, type=%s", e, type(e))
             thread_stop_event.set()

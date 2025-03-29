@@ -1,11 +1,5 @@
 import abc
-import asyncio
-import logging
-import pkgutil
-import importlib
-import inspect
-import threading
-from typing import Dict, Any, List, Tuple, Optional, Type
+import sys
 
 from mate.services.llm.prompt_manager_interface import PromptManager
 
@@ -25,6 +19,38 @@ class BaseService(abc.ABC):
         self.service_type: str = service_type
         self.priority: int = priority
 
+    async def __check_remote_endpoint__(self, endpoint: str) -> bool:
+        parsed = urlparse(endpoint)
+        host: Optional[str] = parsed.hostname
+        port: Optional[int] = parsed.port
+
+        if not host or not port:
+            self.logger.debug(
+                "[check_availability %s] Invalid endpoint: %s (missing host or port)",
+                self.name,
+                endpoint
+            )
+            return False
+
+        # Try to open a connection with a 2-second timeout.
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout=2
+            )
+            writer.close()
+            await writer.wait_closed()
+        except Exception as e:
+            self.logger.debug(
+                "[check_availability %s] Could not connect to host '%s' on port %s. Reason: %s",
+                self.name,
+                host,
+                port,
+                e
+            )
+            return False
+        return True
+
     @abc.abstractmethod
     async def check_availability(self) -> bool:
         pass
@@ -33,6 +59,19 @@ class BaseService(abc.ABC):
     def config_str(self) -> str:
         pass
 
+
+import asyncio
+import threading
+import logging
+import pkgutil
+import importlib
+import inspect
+import re
+from typing import Optional, List, Tuple, Type, Dict, Any
+from urllib.parse import urlparse
+
+# Assuming BaseService is defined elsewhere.
+# from your_module import BaseService
 
 class ServiceDiscovery:
     """
@@ -47,19 +86,16 @@ class ServiceDiscovery:
     _instance_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
-        # First check without lock (fast path)
-        if cls._instance is None:
+        if cls._instance is None:  # Fast path without lock.
             with cls._instance_lock:
-                # Double-check under lock
-                if cls._instance is None:
+                if cls._instance is None:  # Double-check under lock.
                     cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(
         self,
-        service_definitions: Optional[List[Tuple[Type[BaseService], str, int]]] = None
+        service_definitions: Optional[List[Tuple[Type["BaseService"], str, int]]] = None
     ) -> None:
-        # Ensure __init__ body runs only once
         if getattr(self, "_initialized", False):
             return
         self._initialized = True
@@ -68,35 +104,31 @@ class ServiceDiscovery:
         if service_definitions is None:
             service_definitions = []
 
-        # 1) Auto-discover classes from the specified packages
+        # 1) Auto-discover classes from the specified packages.
         auto_discovered = self._discover_services(
             packages=["mate.services.llm", "mate.services.stt", "mate.services.tts"]
         )
 
-        # 2) Combine user-supplied definitions with auto-discovered ones
-        self.service_definitions: List[Tuple[Type[BaseService], str, int]] = (
+        # 2) Combine user-supplied definitions with auto-discovered ones.
+        self.service_definitions: List[Tuple[Type["BaseService"], str, int]] = (
             service_definitions + auto_discovered
         )
 
-        # Map of service-name -> dict with:
-        #   {
-        #       "instance": BaseService or None,
-        #       "available": bool
-        #   }
+        # Map of service name -> dict with "instance" and "available"
         self.services: Dict[str, Dict[str, Any]] = {}
 
-        # Lock for thread-safe read/write of self.services within async tasks
+        # Lock for thread-safe access to self.services (used inside async tasks).
         self._services_lock = asyncio.Lock()
 
-        # Background task reference for availability checks
+        # Background task reference for availability checks.
         self._update_task: Optional[asyncio.Task] = None
 
-        # Allows graceful shutdown
+        # Allows graceful shutdown.
         self._stop_event = asyncio.Event()
 
     def _discover_services(
         self, packages: List[str]
-    ) -> List[Tuple[Type[BaseService], str, int]]:
+    ) -> List[Tuple[Type["BaseService"], str, int]]:
         """
         Use pkgutil + importlib + inspect to import all modules under the given
         packages, and find all classes that inherit from BaseService (but are not
@@ -104,7 +136,7 @@ class ServiceDiscovery:
 
         Returns a list of (service_class, name, priority).
         """
-        discovered: List[Tuple[Type[BaseService], str, int]] = []
+        discovered: List[Tuple[Type["BaseService"], str, int]] = []
 
         for package_name in packages:
             try:
@@ -116,16 +148,13 @@ class ServiceDiscovery:
             if not hasattr(package, "__path__"):
                 continue
 
-            for _, mod_name, _ in pkgutil.walk_packages(
-                package.__path__, package_name + "."
-            ):
+            for _, mod_name, _ in pkgutil.walk_packages(package.__path__, package_name + "."):
                 try:
                     mod = importlib.import_module(mod_name)
                 except Exception as e:
                     self.logger.warning("Failed to import module %s: %s", mod_name, e)
                     continue
 
-                # Customize these as desired
                 ignore_classes = ["LlmOllamaRemote", "STTWhisperRemote", "TTSOpenedAISpeech"]
                 for name, obj in inspect.getmembers(mod, inspect.isclass):
                     if name in ignore_classes:
@@ -138,13 +167,13 @@ class ServiceDiscovery:
                         service_name = f"{obj.__name__}"
                         default_priority = -1
                         discovered.append((obj, service_name, default_priority))
-
         return discovered
 
     async def start(self) -> None:
         """
         Start periodic service availability checks in the background.
         """
+        self.logger.info("Start service discovery")
         self._stop_event.clear()
         # Run one full scan and wait for it to finish.
         await self._check_services_once()
@@ -165,8 +194,7 @@ class ServiceDiscovery:
 
     async def _update_loop(self) -> None:
         """
-        Background task that updates the availability of all services
-        every 3 seconds.
+        Background task that updates the availability of all services every 3 seconds.
         """
         while not self._stop_event.is_set():
             await self._check_services_once()
@@ -177,39 +205,39 @@ class ServiceDiscovery:
 
     async def _check_services_once(self) -> None:
         """
-        Run one iteration of checks across all known service definitions.
+        Run one iteration of checks across all known service definitions in parallel.
         """
-        for service_class, name, priority in self.service_definitions:
-            self.logger.debug(
-                "Checking service_class=%s, name=%s, priority=%s",
-                service_class,
-                name,
-                priority,
-            )
+        async def check_one(service_class: Type["BaseService"], name: str, priority: int):
+            # If an instance already exists, reuse it; otherwise, create a new one.
             async with self._services_lock:
-                if name not in self.services:
-                    try:
-                        instance = service_class()
-                        is_available = await instance.check_availability()
-                        self.services[name] = {
-                            "instance": instance,
-                            "available": is_available,
-                        }
-                    except Exception as e:
-                        self.logger.exception("Error creating/checking service: %s", e)
-                        self.services[name] = {
-                            "instance": None,
-                            "available": False,
-                        }
-                else:
-                    instance = self.services[name]["instance"]
-                    if instance is not None:
-                        try:
-                            is_available = await instance.check_availability()
-                            self.services[name]["available"] = is_available
-                        except Exception as e:
-                            self.logger.exception("Error checking service: %s", e)
-                            self.services[name]["available"] = False
+                existing = self.services.get(name)
+            if existing is not None:
+                instance = existing.get("instance")
+            else:
+                instance = None
+
+            if instance is None:
+                try:
+                    instance = service_class()
+                except Exception as e:
+                    self.logger.exception("Error creating service %s: %s", name, e)
+                    return (name, None, False)
+            try:
+                is_available = await instance.check_availability()
+            except Exception as e:
+                self.logger.exception("Error checking service %s: %s", name, e)
+                is_available = False
+            return (name, instance, is_available)
+
+        tasks = [
+            asyncio.create_task(check_one(service_class, name, priority))
+            for service_class, name, priority in self.service_definitions
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=False)
+
+        async with self._services_lock:
+            for name, instance, is_available in results:
+                self.services[name] = {"instance": instance, "available": is_available}
 
     async def print_status_table(self) -> None:
         """
@@ -223,40 +251,33 @@ class ServiceDiscovery:
             data = [
                 (
                     srv_name,
-                    srv_data["instance"].service_type
-                    if srv_data["instance"] else "N/A",
-                    srv_data["instance"].priority
-                    if srv_data["instance"] else "N/A",
+                    srv_data["instance"].service_type if srv_data["instance"] else "N/A",
+                    srv_data["instance"].priority if srv_data["instance"] else "N/A",
                     srv_data["available"],
                 )
                 for srv_name, srv_data in self.services.items()
             ]
-            for name, srv_type, priority, available in data:
-                lines.append(
-                    f"{name:<25}{srv_type:<8}{priority:<10}{str(available)}"
-                )
+        for name, srv_type, priority, available in data:
+            lines.append(f"{name:<25}{srv_type:<8}{priority:<10}{str(available)}")
         self.logger.info("\n".join(lines))
 
-    async def get_best_service(self, service_type: str) -> Optional[BaseService]:
+    async def get_best_service(self, service_type: str) -> Optional["BaseService"]:
         """
-        Get the best available service for the given type, i.e. the one
-        that is 'available' and has the highest priority (or whichever logic
-        you prefer).
+        Get the best available service for the given type, i.e. the one that is 'available'
+        and has the highest priority (or whichever logic you prefer).
         Returns None if no such service is available.
         """
-        async def gather_candidates() -> List[BaseService]:
-            async with self._services_lock:
-                candidates: List[BaseService] = []
-                for srv_data in self.services.values():
-                    inst = srv_data["instance"]
-                    if inst is not None and inst.service_type == service_type and srv_data["available"]:
-                        candidates.append(inst)
-                return candidates
-
-        candidates = await gather_candidates()
+        async with self._services_lock:
+            candidates = [
+                srv_data["instance"]
+                for srv_data in self.services.values()
+                if srv_data["instance"] and srv_data["instance"].service_type == service_type and srv_data["available"]
+            ]
 
         if not candidates:
-            return None
+            await self.print_status_table()
+            print()
+            sys.exit(f"There is no {service_type} service available. You may want to run \"./docker/docker.sh\" to bring up local instances.")
 
         candidates.sort(key=lambda x: x.priority, reverse=True)
         self.logger.info(f"type: {service_type}, return {candidates[0].name}")
