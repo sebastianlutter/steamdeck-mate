@@ -42,9 +42,10 @@ services:
 #
 # available env vars, see:
 # https://github.com/fedirz/faster-whisper-server/blob/master/src/faster_whisper_server/config.py
-#
+# successor: https://github.com/speaches-ai/speaches
   faster-whisper-server:
     image: fedirz/faster-whisper-server:latest-cpu
+    #image: ghcr.io/speaches-ai/speaches:latest-cpu
     restart: unless-stopped
     ports:
       - 8000:8000
@@ -55,6 +56,8 @@ services:
       #- WHISPER__MODEL=Systran/faster-whisper-small
       - WHISPER__MODEL=Systran/faster-whisper-medium
       #- WHISPER__MODEL=Systran/faster-distil-whisper-large-v3
+      #- WHISPER__MODEL=primeline/whisper-tiny-german
+      #- WHISPER__MODEL=aseifert/faster-whisper-large-v3-turbo-german
       - WHISPER__COMPUTE_TYPE=int8
       - DEFAULT_LANGUAGE=de
 

@@ -3,13 +3,12 @@ services:
 
   ollama-llm:
     image: ollama/ollama:latest
+    container_name: ollama-llm
     ports:
       - 11434:11434
     volumes:
      - ollama-downloads:/root/.ollama
      - ./llm/ollama-entrypoint.sh:/entrypoint.sh
-    container_name: ollama-llm
-    pull_policy: always
     tty: true
     restart: always
     environment:
@@ -52,6 +51,7 @@ services:
 # https://github.com/fedirz/faster-whisper-server/blob/master/src/faster_whisper_server/config.py
 #
   faster-whisper-server:
+    #image: ghcr.io/speaches-ai/speaches:latest-cuda
     image: fedirz/faster-whisper-server:latest-cuda
     restart: unless-stopped
     ports:
@@ -65,6 +65,8 @@ services:
       - DEFAULT_LANGUAGE=de
 #      - UVICORN_HOST=0.0.0.0
 #      - UVICORN_PORT=8000
+      #- WHISPER__MODEL=primeline/whisper-tiny-german
+      #- WHISPER__MODEL=aseifert/faster-whisper-large-v3-turbo-german
     deploy:
       resources:
         reservations:

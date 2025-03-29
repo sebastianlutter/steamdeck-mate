@@ -72,6 +72,77 @@ This is meant to evolve into a more robust assistant capable of real Speech-To-T
 
 ---
 
+## Services
+
+The application depends on running docker services that provide the TTS, STT and LLM functionality. There are CPU 
+and CUDA versions available, provided as `docker-compose.yaml` or `docker-compose-gpu.yaml` files. Make sure you have a recent
+[Docker](https://docs.docker.com/engine/install/) or [Podman](https://podman.io/docs/installation) installation on your system. The cuda version needs Docker and 
+the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+to be installed.
+
+The following project are used:
+ * [Ollama](https://github.com/ollama/ollama) for LLM inference using the [official Docker image](https://hub.docker.com/r/ollama/ollama)
+ * [OpenedAI-Speech](https://github.com/matatonic/openedai-speech) for TTS generation u
+
+To start the services you can use the `./docker/docker.sh` script or `docker compose`/`podman compose` 
+
+### The `./docker/docker.sh` script
+To show the current status
+```
+steamdeack-mate$ ./docker/docker.sh 
+NVIDIA driver is not installed or GPU is not operational.
+Starting CPU only stacks
+Using docker-compose.yaml files
+##############################################################
+# Show status
+##############################################################
+NAME                STATUS              CONFIG FILES
+##############################################################
+# Services of ./
+##############################################################
+```
+
+Start the services
+```
+steamdeack-mate$ ./docker/docker.sh start
+NVIDIA driver is not installed or GPU is not operational.
+Starting CPU only stacks
+Using docker-compose.yaml files
+##############################################################
+# Starting all stacks
+##############################################################
+Starting ./
+[+] Running 1/1
+ ✔ ollama-llm Pulled                                                                                                             1.8s 
+[+] Running 4/4
+ ✔ Network mate-support-stack_default                    Created                                                                 0.0s 
+ ✔ Container mate-support-stack-faster-whisper-server-1  Started                                                                 0.4s 
+ ✔ Container mate-support-stack-ollama-llm-1             Started                                                                 0.4s 
+ ✔ Container mate-support-stack-tts-server-1             Started                                                                 0.5s
+```
+
+Check status again
+```
+steamdeack-mate$ ./docker/docker.sh 
+NVIDIA driver is not installed or GPU is not operational.
+Starting CPU only stacks
+Using docker-compose.yaml files
+##############################################################
+# Show status
+##############################################################
+NAME                 STATUS              CONFIG FILES
+mate-support-stack   running(3)          /home/myself/workspaces/privat/steamdeack-mate/docker/docker-compose.yaml
+##############################################################
+# Services of ./
+##############################################################
+  - fedirz/faster-whisper-server:latest-cpu - Up 28 seconds: mate-support-stack-faster-whisper-server-1
+  - ollama/ollama:latest - Up 28 seconds: mate-support-stack-ollama-llm-1
+  - ghcr.io/matatonic/openedai-speech-min - Up 28 seconds: mate-support-stack-tts-server-1
+```
+
+
+--- 
+
 # Audio Device Selector
 
 This Python script provides an interactive, terminal-based interface for selecting and testing audio input (recording) and output (playback) devices. It uses the `curses` library to render a text-based menu, and `pyaudio` to interact with the system's audio devices. The script not only allows you to choose devices but also displays useful details such as the device's default sample rate and number of channels, and includes functionality to test both playback and recording capabilities.
