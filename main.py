@@ -7,6 +7,8 @@ async def main():
         await mate.listen_and_choose_mode()
     except KeyboardInterrupt:
         await mate.stop()
+    except:
+        await mate.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())

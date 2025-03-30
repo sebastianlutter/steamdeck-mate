@@ -69,6 +69,19 @@ class HumanSpeechAgent:
         ]
         self.explain_sentence = "Sag das wort computer um zu starten."
 
+    async def __aenter__(self):
+        self.logger.info("Enter constructing class")
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.logger.info("Exit class, close resources")
+        self.soundcard.close()
+        #self.voice_activator.
+        await self.service_discovery.stop()
+        if exc:
+            self.logger.error(f"Exception caught: {exc}", exc_info=exc)
+        return False  # False means any exception is propagated
+
     async def engage_input_beep(self) -> None:
         sample_rate, audio_buffer = await self._load_mp3_to_wav_bytesio("sounds/deskviewerbeep.mp3")
         await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
@@ -162,10 +175,12 @@ class HumanSpeechAgent:
             try:
                 await self.voice_activator.listen_for_wake_word(stop_signal=None)
                 await self.beep_positive()
+            except asyncio.CancelledError as e:
+                self.logger.error("Got CancelledError from  wake word process", exc_info=e)
             except BaseException as e:
                 self.logger.error("Exception while listen for wake word", exc_info=e)
-                return
-
+            except:
+                self.logger.error("Unknown Exception while listen for wake word", exc_info=True)
         def on_close_ws_callback() -> None:
             self.logger.debug("get_human_input.on_close_ws_callback: websocket closed")
 

@@ -32,15 +32,26 @@ logging.getLogger("websocket").setLevel(logging.ERROR)
 
 
 class SteamdeckMate:
+
     def __init__(self) -> None:
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.running: bool = False
         self.soundcard: SoundCard = SoundCard()
         self.service_discovery: ServiceDiscovery = ServiceDiscovery()
         self.human_speech_agent = HumanSpeechAgent()
         self.status = Mode.CHAT
         self.prompt_manager = LlamaPromptManager(initial_mode=Mode.CHAT,
                                             reduction_strategy=RemoveOldestStrategy())
+
+    async def __aenter__(self):
+        self.logger.info("Enter constructing class")
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.logger.info("Exit class, close resources")
+        await self.stop()
+        if exc:
+            print(f"Exception caught: {exc}")
+        return False  # False means any exception is propagated
 
     async def listen_and_choose_mode(self) -> None:
         discovery_routine = self.service_discovery.start()
@@ -71,16 +82,22 @@ class SteamdeckMate:
                     tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
                     tts_provider.speak(sentence)
                 await processing_sound_routine
+            except asyncio.CancelledError as e:
+                self.logger.error("CancelledError",exc_info=e)
+                break
             except KeyboardInterrupt as e:
                 self.soundcard.close()
                 self.human_speech_agent.stop_signal.set()
                 self.logger.info("KeyboardInterrupt: Stop processing")
                 break
             except BaseException as e:
-                self.logger.error("got error", exc_info=True)
-                raise e
+                self.logger.error("got error", exc_info=e)
+                break
+            except:
+                self.logger.error("got unknown error", exc_info=True)
+                break
             finally:
-                self.logger.info("Recording loop has ended.")
+                self.logger.info("Application closed.")
 
     async def ask_llm(self, text: str, stream_sentences: bool) -> AsyncGenerator[str, None]:
         self.prompt_manager.add_user_entry(text)
@@ -123,10 +140,8 @@ class SteamdeckMate:
     async def stop(self) -> None:
         self.logger.info("Stopping...")
         self.running = False
-
         self.soundcard.stop_recording()
         self.soundcard.stop_playback()
-        await asyncio.sleep(0.2)
         await self.service_discovery.stop()
         self.soundcard.close()
         self.logger.info("All resources closed. Stopped.")
