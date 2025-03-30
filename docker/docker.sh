@@ -11,13 +11,52 @@ title() {
   echo "##############################################################"
 }
 
+# find suitable docker-compose command
+function find_compose_cmd() {
+  podman compose ps &> /dev/null
+  if [ $? -eq 0 ]; then
+    echo "podman compose"
+    return 0
+  fi
+  docker compose ps &> /dev/null
+  if [ $? -eq 0 ]; then
+    echo "docker compose"
+    return 0
+  fi
+  podman-compose ps &> /dev/null
+  if [ $? -eq 0 ]; then
+    echo "podman-compose"
+    return 0
+  fi
+  docker-compose ps &> /dev/null
+  if [ $? -eq 0 ]; then
+    echo "docker-compose"
+    return 0
+  fi
+}
+
+COMPOSE_CMD="$(find_compose_cmd)"
+export LIST_ACTION="stats"
+export NAME_FIELD=".Names"
+echo $COMPOSE_CMD | grep docker &> /dev/null
+if [ $? -ne 1 ]; then
+  export LIST_ACTION="ls"
+  export NAME_FIELD=".Name"
+fi
+if [ "$COMPOSE_CMD" != "" ]; then
+  echo "Found \"$COMPOSE_CMD\" as docker compose command"
+else
+  echo "No docker compose or podman compose implementation found. Please install one."
+  exit 1
+fi
+
 list_services() {
-  docker compose ls
+  $COMPOSE_CMD $LIST_ACTION
 }
 
 compose() {
   cd "$1"
-  docker compose -f ${CONF} $2 $3 $4
+  $COMPOSE_CMD -f ${CONF} $2 $3 $4
   cd ..
 }
 
@@ -50,13 +89,16 @@ case "${2}" in
             echo "NVIDIA container runtime is not installed."
             echo "Starting CPU only stacks"
         fi
+    elif command -v rocm-smi &> /dev/null && rocm-smi > /dev/null 2>&1; then
+      echo "AMD rocm drivers are detected, using the amdgpu stack"
+      DEVICE="-rocm"
     else
-        echo "NVIDIA driver is not installed or GPU is not operational."
+        echo "No GPU (NVIDIA or rocm) is installed or GPU is not operational."
         echo "Starting CPU only stacks"
     fi
     ;;
 esac
-CONF="docker-compose${DEVICE}.yaml"
+CONF="docker-compose${DEVICE}.yml"
 echo "Using $CONF files"
 
 case "${ACTION}" in
@@ -86,7 +128,7 @@ case "${ACTION}" in
   *)
     title "Services of $folder"
     cd $folder
-    docker compose ps --format "{{.Name}} {{.Image}} {{.Status}}" | while read NAME IMAGE STATUS; do
+    $COMPOSE_CMD ps --format "{{$NAME_FIELD}} {{.Image}} {{.Status}}" | while read NAME IMAGE STATUS; do
       echo -e "  - $IMAGE - $STATUS: $NAME"
     done
     cd ..

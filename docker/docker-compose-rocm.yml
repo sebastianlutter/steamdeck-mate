@@ -76,3 +76,7 @@ services:
       #- WHISPER__MODEL=aseifert/faster-whisper-large-v3-turbo-german
       - WHISPER__COMPUTE_TYPE=int8
       - DEFAULT_LANGUAGE=de
+
+volumes:
+  ollama-downloads:
+  hugging_face_cache:

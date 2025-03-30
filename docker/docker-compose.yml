@@ -8,7 +8,6 @@ services:
     volumes:
      - ollama-downloads:/root/.ollama
      - ./llm/ollama-entrypoint.sh:/entrypoint.sh
-    pull_policy: always
     tty: true
     restart: always
     environment:
