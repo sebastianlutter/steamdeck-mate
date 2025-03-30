@@ -11,11 +11,13 @@ services:
      - ./llm/ollama-entrypoint.sh:/entrypoint.sh
     tty: true
     restart: always
+    networks:
+      - default
     environment:
       - OLLAMA_KEEP_ALIVE=24h
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_MODELS=/root/.ollama/models
-      - OLLAMA_MODEL_DL=llama3.2:3b,llama3.1:8b
+      - OLLAMA_MODEL_DL=llama3.2:1b,llama3.2:3b
       - HSA_OVERRIDE_GFX_VERSION=10.3.0
     entrypoint: ["/usr/bin/bash", "/entrypoint.sh"]
     devices:
@@ -26,7 +28,6 @@ services:
 
   tts-server:
     image: ghcr.io/matatonic/openedai-speech-rocm
-    env_file: speech.env
     ports:
       - "8001:8000"
     volumes:
@@ -34,6 +35,8 @@ services:
       - ./tts/config:/app/config
     # To install as a service
     restart: unless-stopped
+    networks:
+      - default
     environment:
       TTS_HOME: "/app/voices"
       HF_HOME: "/app/voices"
@@ -67,6 +70,8 @@ services:
       - 8000:8000
     volumes:
       - hugging_face_cache:/root/.cache/huggingface
+    networks:
+      - default
     environment:
       #- WHISPER__MODEL=Systran/faster-whisper-tiny
       #- WHISPER__MODEL=Systran/faster-whisper-small
@@ -75,8 +80,12 @@ services:
       #- WHISPER__MODEL=primeline/whisper-tiny-german
       #- WHISPER__MODEL=aseifert/faster-whisper-large-v3-turbo-german
       - WHISPER__COMPUTE_TYPE=int8
+      - HSA_OVERRIDE_GFX_VERSION=10.3.0
       - DEFAULT_LANGUAGE=de
 
 volumes:
   ollama-downloads:
   hugging_face_cache:
+
+networks:
+  default:

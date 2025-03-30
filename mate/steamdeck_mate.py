@@ -54,9 +54,8 @@ class SteamdeckMate:
         return False  # False means any exception is propagated
 
     async def listen_and_choose_mode(self) -> None:
-        discovery_routine = self.service_discovery.start()
+        await self.service_discovery.start()
         await self.human_speech_agent.warmup_cache()
-        await discovery_routine
         await self.service_discovery.print_status_table()
         self.logger.info("Starting to listen...")
         await self.human_speech_agent.say_init_greeting()

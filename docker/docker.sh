@@ -13,24 +13,24 @@ title() {
 
 # find suitable docker-compose command
 function find_compose_cmd() {
-  podman compose ps &> /dev/null
-  if [ $? -eq 0 ]; then
-    echo "podman compose"
-    return 0
-  fi
   docker compose ps &> /dev/null
   if [ $? -eq 0 ]; then
     echo "docker compose"
     return 0
   fi
-  podman-compose ps &> /dev/null
-  if [ $? -eq 0 ]; then
-    echo "podman-compose"
-    return 0
-  fi
   docker-compose ps &> /dev/null
   if [ $? -eq 0 ]; then
     echo "docker-compose"
+    return 0
+  fi
+  podman compose ps &> /dev/null
+  if [ $? -eq 0 ]; then
+    echo "podman compose"
+    return 0
+  fi
+  podman-compose ps &> /dev/null
+  if [ $? -eq 0 ]; then
+    echo "podman-compose"
     return 0
   fi
 }
