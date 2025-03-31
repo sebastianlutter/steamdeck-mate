@@ -38,7 +38,7 @@ class SoundCard(AudioInterface):
                 f"Error: The playback device index '{self.audio_playback_device}' is invalid or not available."
             )
 
-        self.logger.info("Available devices:")
+        self.logger.info("Available devices: (constructor)")
         self.list_devices()
         self.logger.info(
             "Loading device: microphone=%s, playback=%s",

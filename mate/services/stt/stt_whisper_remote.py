@@ -193,7 +193,7 @@ class SteamdeckSTTWhisper(STTWhisperRemote):
     config = {
         "name": "SteamdeckSTTWhisper",
         "priority": 0,
-        "endpoint": "http://127.0.0.1:8000/v1/audio/transcriptions?language=de",
+        "endpoint": "http://192.168.1.87:8000/v1/audio/transcriptions?language=de",
     }
 
     def __init__(self) -> None:

@@ -2,23 +2,28 @@ import os
 import threading
 import logging
 import numpy as np
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, ABCMeta
 from typing import Optional, AsyncGenerator
 
-class AudioInterface(ABC):
+class SingletonABCMeta(ABCMeta):
     """
-    A metaclass that combines ABCMeta and Singleton logic.
-    This metaclass ensures that only one instance of any class using it is created.
-    Only the first constructor call creates an instance, the others get the same reference.
+    A metaclass that combines Singleton logic with ABCMeta functionality.
+    Ensures that only one instance of any class using this metaclass is created.
     """
-
     _instances = {}
+    _lock = threading.Lock()  # Ensure thread safety for singleton creation
 
-    def __call__(cls, *args, **kwargs):  # type: ignore
+    def __call__(cls, *args, **kwargs):
+        # First check if an instance already exists (fast path)
         if cls not in cls._instances:
-            instance = super(AudioInterface, cls).__call__(*args, **kwargs)
-            cls._instances[cls] = instance
+            with cls._lock:
+                # Double-check inside the lock to avoid race conditions
+                if cls not in cls._instances:
+                    instance = super().__call__(*args, **kwargs)
+                    cls._instances[cls] = instance
         return cls._instances[cls]
+
+class AudioInterface(ABC, metaclass=SingletonABCMeta):
 
     def __init__(self) -> None:
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")

@@ -55,10 +55,11 @@ class SteamdeckMate:
 
     async def listen_and_choose_mode(self) -> None:
         await self.service_discovery.start()
-        await self.human_speech_agent.warmup_cache()
+        warmup_task = asyncio.create_task(self.human_speech_agent.warmup_cache())
         await self.service_discovery.print_status_table()
         self.logger.info("Starting to listen...")
         await self.human_speech_agent.say_init_greeting()
+        await warmup_task
         wake_word = True
         while True:
             try:
@@ -76,11 +77,11 @@ class SteamdeckMate:
                 else:
                     wake_word = True
                 # give user input text to prompt manager
-                processing_sound_routine = self.human_speech_agent.processing_sound()
+                processing_sound_task = asyncio.create_task(self.human_speech_agent.processing_sound())
                 async for sentence in self.ask_llm(text=full_text, stream_sentences=True):
                     tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
                     tts_provider.speak(sentence)
-                await processing_sound_routine
+                await processing_sound_task
             except asyncio.CancelledError as e:
                 self.logger.error("CancelledError",exc_info=e)
                 break

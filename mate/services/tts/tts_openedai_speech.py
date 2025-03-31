@@ -83,7 +83,7 @@ class SteamdeckTTSOpenedAI(TTSOpenedAISpeech):
     config = {
         "name": "SteamdeckTTS",
         "priority": 0,
-        "endpoint": "http://127.0.0.1:8001/v1",
+        "endpoint": "http://192.168.1.87:8001/v1",
         "voice": "thorsten-low"
     }
 

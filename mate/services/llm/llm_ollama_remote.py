@@ -75,10 +75,10 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
 
 class SteamdeckOllamaRemote(LlmOllamaRemote):
     config: Dict[str, Any] = {
-        "name": "SteamdeckLLama3B",
+        "name": "SteamdeckLLama1B",
         "priority": 0,
-        "endpoint": "http://127.0.0.1:11434",
-        "ollama_model": "llama3.2:3b"
+        "endpoint": "http://192.168.1.87:11434",
+        "ollama_model": "llama3.2:1b"
     }
 
     def __init__(self) -> None:
