@@ -17,6 +17,7 @@ class SoundCard(AudioInterface):
     def __init__(self) -> None:
         super().__init__()
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.logger.info("Initialize Soundcard conncetion for microphone and playback")
         self.sample_format: int = pyaudio.paInt16
         self.audio: pyaudio.PyAudio = pyaudio.PyAudio()
 
@@ -172,6 +173,11 @@ class SoundCard(AudioInterface):
                     yield chunk
                 else:
                     await asyncio.sleep(0.01)
+        except asyncio.exceptions.CancelledError as e:
+            self.stop_recording()
+            self.stop_playback()
+            self.logger.warning("Got cancelled error for await. Seems the app is closing")
+
         finally:
             self.logger.debug("soundcard_pyaudio.get_record_stream: generator exit.")
             self.recording_active.clear()

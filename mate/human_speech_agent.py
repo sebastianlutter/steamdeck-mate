@@ -30,7 +30,7 @@ class HumanSpeechAgent:
                     cls._instance = super(HumanSpeechAgent, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self) -> None:
+    def __init__(self, service_discovery: ServiceDiscovery) -> None:
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         if getattr(self, "_initialized", False):
             return
@@ -38,7 +38,7 @@ class HumanSpeechAgent:
 
         self.interrupt_speech_thread: threading.Thread = None
         self.soundcard: SoundCard = SoundCard()
-        self.service_discovery: ServiceDiscovery = ServiceDiscovery()
+        self.service_discovery: ServiceDiscovery = service_discovery
         self.voice_activator: PorcupineWakeWord = PorcupineWakeWord()
         self.silence_lead_time: int = 2
         self.max_recording_time: int = 15
@@ -114,8 +114,12 @@ class HumanSpeechAgent:
         await asyncio.to_thread(self.soundcard.play_audio, sample_rate, audio_buffer)
         tts_provider: TTSInterface = await self.service_discovery.get_best_service("TTS")
         #await asyncio.to_thread(tts_provider.speak, f"Ich höre auf den Namen {self.voice_activator.wakeword}")
-        await asyncio.to_thread(tts_provider.wait_until_done)
-        await asyncio.to_thread(self.soundcard.wait_until_playback_finished)
+        try:
+            await asyncio.to_thread(tts_provider.wait_until_done)
+            await asyncio.to_thread(self.soundcard.wait_until_playback_finished)
+        except asyncio.exceptions.CancelledError as e:
+            self.logger.warning("Got cencelled error. Seems like the app is shutdown")
+            await self.stop_speech_interrupt_thread()
 
     async def say_hi(self) -> None:
         hi_phrase = random.choice(self.hi_choices)

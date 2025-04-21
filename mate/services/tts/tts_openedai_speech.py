@@ -64,28 +64,3 @@ class TTSOpenedAISpeech(TTSInterface):
         # Save the audio_stream as an MP3 file
         with open(store_file_name, "wb") as f:
             f.write(audio_stream.getbuffer())
-
-
-class WorkstationTTSOpenedAI(TTSOpenedAISpeech):
-
-    config = {
-        "name": "WorkstationTTS",
-        "priority": 100,
-        "endpoint": "http://192.168.0.75:8001/v1",
-        "voice": "thorsten-medium"
-    }
-    
-    def __init__(self):
-        super().__init__(**self.config)
-
-
-class SteamdeckTTSOpenedAI(TTSOpenedAISpeech):
-    config = {
-        "name": "SteamdeckTTS",
-        "priority": 0,
-        "endpoint": "http://192.168.1.87:8001/v1",
-        "voice": "thorsten-low"
-    }
-
-    def __init__(self):
-        super().__init__(**self.config)

@@ -1,5 +1,6 @@
 import asyncio
 from mate.steamdeck_mate import SteamdeckMate
+import traceback
 
 async def main():
     mate = SteamdeckMate()
@@ -8,6 +9,7 @@ async def main():
     except KeyboardInterrupt:
         await mate.stop()
     except:
+        traceback.print_exc()
         await mate.stop()
 
 if __name__ == "__main__":

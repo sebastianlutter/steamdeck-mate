@@ -51,9 +51,11 @@ services:
     volumes:
       - hugging_face_cache:/root/.cache/huggingface
     environment:
+      - WHISPER__MODEL=ammaraldirawi/faster-whisper-small-de-int8
+      #- WHISPER__MODEL=devirex/whisper-faster-small-german
       #- WHISPER__MODEL=Systran/faster-whisper-tiny
       #- WHISPER__MODEL=Systran/faster-whisper-small
-      - WHISPER__MODEL=Systran/faster-whisper-medium
+      #- WHISPER__MODEL=Systran/faster-whisper-medium
       #- WHISPER__MODEL=Systran/faster-distil-whisper-large-v3
       #- WHISPER__MODEL=primeline/whisper-tiny-german
       #- WHISPER__MODEL=aseifert/faster-whisper-large-v3-turbo-german

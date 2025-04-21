@@ -99,7 +99,7 @@ case "${2}" in
     ;;
 esac
 CONF="docker-compose${DEVICE}.yml"
-echo "Using $CONF files"
+echo "Using $CONF"
 
 case "${ACTION}" in
   start)

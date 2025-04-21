@@ -1,0 +1,63 @@
+LLM:
+  - name: "WorkstationLlama8b"
+    base_class: "mate.services.llm.llm_ollama_remote.LlmOllamaRemote"
+    priority: 100
+    endpoint: "http://192.168.0.75:11434"
+    ollama_model: "llama3.1:8b"
+
+  - name: "SteamdeckLlama1b"
+    base_class: "mate.services.llm.llm_ollama_remote.LlmOllamaRemote"
+    priority: 50
+    endpoint: "http://192.168.1.87:11434"
+    ollama_model: "llama3.1:8b"
+
+  - name: "LocalhostOllama3b"
+    base_class: "mate.services.llm.llm_ollama_remote.LlmOllamaRemote"
+    priority: 0
+    endpoint: "http://192.168.0.75:11434"
+    ollama_model: "llama3.1:8b"
+
+  - name: "OpenRouterGPT4"
+    base_class: "mate.services.llm.llm_openrouter_gpt.LlmOpenrouterGpt"
+    priority: 30
+    model: "openai/gpt-4o-mini"
+
+STT:
+  - name: "WorkstationSTTWhisper"
+    base_class: "mate.services.stt.stt_whisper_remote.STTWhisperRemote"
+    priority: 100
+    endpoint: "http://192.168.0.75:8000/v1/audio/transcriptions?language=de"
+
+  - name: "SteamdeckSTTWhisper"
+    base_class: "mate.services.stt.stt_whisper_remote.STTWhisperRemote"
+    priority: 50
+    endpoint: "http://192.168.1.87:8000/v1/audio/transcriptions?language=de"
+
+  - name: "LocalhostSTTWhisper"
+    base_class: "mate.services.stt.stt_whisper_remote.STTWhisperRemote"
+    priority: 0
+    endpoint: "http://127.0.0.1:8000/v1/audio/transcriptions?language=de"
+
+  - name: "OpenrouterOpenAiSTT"
+    base_class: "mate.services.stt.stt_openrouter_openai.OpenRouterSTT"
+    priority: 80
+    model: "openai/whisper"
+
+TTS:
+  - name: "WorkstationTTS"
+    base_class: "mate.services.tts.tts_openedai_speech.TTSOpenedAISpeech"
+    priority: 100
+    endpoint: "http://192.168.0.75:8001/v1"
+    voice: "thorsten-medium"
+
+  - name: "SteamdeckTTS"
+    base_class: "mate.services.tts.tts_openedai_speech.TTSOpenedAISpeech"
+    priority: 50
+    endpoint: "http://192.168.1.87:8001/v1"
+    voice: "thorsten-medium"
+
+  - name: "LocalhostTTS"
+    base_class: "mate.services.tts.tts_openedai_speech.TTSOpenedAISpeech"
+    priority: 0
+    endpoint: "http://127.0.0.1:8001/v1"
+    voice: "thorsten-medium"

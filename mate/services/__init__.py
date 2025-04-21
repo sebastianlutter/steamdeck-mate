@@ -63,10 +63,6 @@ class BaseService(abc.ABC):
 import asyncio
 import threading
 import logging
-import pkgutil
-import importlib
-import inspect
-import re
 from typing import Optional, List, Tuple, Type, Dict, Any
 from urllib.parse import urlparse
 
@@ -94,25 +90,23 @@ class ServiceDiscovery:
 
     def __init__(
         self,
-        service_definitions: Optional[List[Tuple[Type["BaseService"], str, int]]] = None
+        service_definitions: Optional[List[BaseService]] = None
     ) -> None:
         if getattr(self, "_initialized", False):
             return
         self._initialized = True
 
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.logger.debug(f"Processing {len(service_definitions)} service definitions")
+        self.service_definitions: List[Tuple[Type["BaseService"], str, int]] = []
         if service_definitions is None:
-            service_definitions = []
-
-        # 1) Auto-discover classes from the specified packages.
-        auto_discovered = self._discover_services(
-            packages=["mate.services.llm", "mate.services.stt", "mate.services.tts"]
-        )
-
-        # 2) Combine user-supplied definitions with auto-discovered ones.
-        self.service_definitions: List[Tuple[Type["BaseService"], str, int]] = (
-            service_definitions + auto_discovered
-        )
+            self.logger.info("Got no service definitions to process from remote_services.yml")
+        else:
+            self.logger.info(f"ServiceDiscovery started: got {len(service_definitions)} existing service instance definitions.")
+            self.service_definitions: List[Tuple[Type["BaseService"], str, int]] = []
+            for obj in service_definitions:
+                #self.logger.debug("\n".join([f"{attr}: {getattr(obj, attr)}" for attr in dir(obj) if not attr.startswith('__')]))
+                self.service_definitions.append((obj, obj.config['name'], obj.config['priority']))
 
         # Map of service name -> dict with "instance" and "available"
         self.services: Dict[str, Dict[str, Any]] = {}
@@ -126,54 +120,11 @@ class ServiceDiscovery:
         # Allows graceful shutdown.
         self._stop_event = asyncio.Event()
 
-    def _discover_services(
-        self, packages: List[str]
-    ) -> List[Tuple[Type["BaseService"], str, int]]:
-        """
-        Use pkgutil + importlib + inspect to import all modules under the given
-        packages, and find all classes that inherit from BaseService (but are not
-        BaseService itself).
-
-        Returns a list of (service_class, name, priority).
-        """
-        discovered: List[Tuple[Type["BaseService"], str, int]] = []
-
-        for package_name in packages:
-            try:
-                package = importlib.import_module(package_name)
-            except ImportError as e:
-                self.logger.warning("Could not import package '%s': %s", package_name, e)
-                continue
-
-            if not hasattr(package, "__path__"):
-                continue
-
-            for _, mod_name, _ in pkgutil.walk_packages(package.__path__, package_name + "."):
-                try:
-                    mod = importlib.import_module(mod_name)
-                except Exception as e:
-                    self.logger.warning("Failed to import module %s: %s", mod_name, e)
-                    continue
-
-                ignore_classes = ["LlmOllamaRemote", "STTWhisperRemote", "TTSOpenedAISpeech"]
-                for name, obj in inspect.getmembers(mod, inspect.isclass):
-                    if name in ignore_classes:
-                        continue
-                    if (
-                        issubclass(obj, BaseService)
-                        and obj is not BaseService
-                        and not inspect.isabstract(obj)
-                    ):
-                        service_name = f"{obj.__name__}"
-                        default_priority = -1
-                        discovered.append((obj, service_name, default_priority))
-        return discovered
-
     async def start(self) -> None:
         """
         Start periodic service availability checks in the background.
         """
-        self.logger.info("Start service discovery")
+        self.logger.info(f"Check availability of {len(self.services)} services in given interval every 3 seconds")
         self._stop_event.clear()
         # Run one full scan and wait for it to finish.
         await self._check_services_once()
@@ -183,6 +134,7 @@ class ServiceDiscovery:
         """
         Signal the periodic update loop to stop and wait for it.
         """
+        self.logger.info(f"Stop and shutdown continuous availability check of {len(self.services)} services")
         if self._update_task:
             self._stop_event.set()
             self._update_task.cancel()
@@ -207,6 +159,7 @@ class ServiceDiscovery:
         """
         Run one iteration of checks across all known service definitions in parallel.
         """
+        self.logger.debug(f"Running availablilty check of {len(self.services)} services")
         async def check_one(service_class: Type["BaseService"], name: str, priority: int):
             # If an instance already exists, reuse it; otherwise, create a new one.
             async with self._services_lock:

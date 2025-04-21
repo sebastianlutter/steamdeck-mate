@@ -176,25 +176,3 @@ class STTWhisperRemote(STTInterface):
 
     def config_str(self) -> str:
         return f"endpoint: {self.stt_endpoint}"
-
-
-class WorkstationSTTWhisper(STTWhisperRemote):
-    config = {
-        "name": "WorkstationSTTWhisper",
-        "priority": 100,
-        "endpoint": "http://192.168.0.75:8000/v1/audio/transcriptions?language=de",
-    }
-
-    def __init__(self) -> None:
-        super().__init__(**self.config)
-
-
-class SteamdeckSTTWhisper(STTWhisperRemote):
-    config = {
-        "name": "SteamdeckSTTWhisper",
-        "priority": 0,
-        "endpoint": "http://192.168.1.87:8000/v1/audio/transcriptions?language=de",
-    }
-
-    def __init__(self) -> None:
-        super().__init__(**self.config)

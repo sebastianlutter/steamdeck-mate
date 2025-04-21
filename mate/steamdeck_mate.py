@@ -1,6 +1,8 @@
+import traceback
 from dotenv import load_dotenv
 
 from mate.services.llm.prompt_manager_llama import LlamaPromptManager
+from mate.services.services_loader import create_service_instances
 
 load_dotenv()
 
@@ -11,14 +13,15 @@ from typing import AsyncGenerator
 
 from nltk import sent_tokenize
 
-from mate.audio.soundcard_pyaudio import SoundCard  # Make sure this path matches your real import
+from mate.audio.soundcard_pyaudio import SoundCard
 from mate.human_speech_agent import HumanSpeechAgent
-from mate.services import ServiceDiscovery, PromptManager
+from mate.services import ServiceDiscovery
 
 from mate.services.llm.llm_interface import LlmInterface
 from mate.services.llm.prompt_manager_interface import Mode, RemoveOldestStrategy
 from mate.services.tts.tts_interface import TTSInterface
 from mate.utils import clean_str_from_markdown, is_sane_input_german
+
 
 #format_string = (
 #    "%(asctime)s - [Logger: %(name)s] - %(levelname)s - %(filename)s:%(lineno)d in %(funcName)s() - %(message)s"
@@ -36,14 +39,14 @@ class SteamdeckMate:
     def __init__(self) -> None:
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.soundcard: SoundCard = SoundCard()
-        self.service_discovery: ServiceDiscovery = ServiceDiscovery()
-        self.human_speech_agent = HumanSpeechAgent()
+        self.service_discovery = None
+        self.human_speech_agent = None
         self.status = Mode.CHAT
         self.prompt_manager = LlamaPromptManager(initial_mode=Mode.CHAT,
                                             reduction_strategy=RemoveOldestStrategy())
 
     async def __aenter__(self):
-        self.logger.info("Enter constructing class")
+        self.logger.info("Enter class")
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -54,7 +57,13 @@ class SteamdeckMate:
         return False  # False means any exception is propagated
 
     async def listen_and_choose_mode(self) -> None:
+        # actually start the service discovery
+        self.logger.info("Reading remote_services.yml with service definitions")
+        remote_services = await create_service_instances(yaml_path="remote_services.yml")
+        self.logger.info(f"Created {len(remote_services)} services from remote_services.yml config")
+        self.service_discovery = ServiceDiscovery(service_definitions=remote_services)
         await self.service_discovery.start()
+        self.human_speech_agent = HumanSpeechAgent(service_discovery=self.service_discovery)
         warmup_task = asyncio.create_task(self.human_speech_agent.warmup_cache())
         await self.service_discovery.print_status_table()
         self.logger.info("Starting to listen...")
@@ -84,6 +93,7 @@ class SteamdeckMate:
                 await processing_sound_task
             except asyncio.CancelledError as e:
                 self.logger.error("CancelledError",exc_info=e)
+                traceback.print_exc()
                 break
             except KeyboardInterrupt as e:
                 self.soundcard.close()
@@ -92,9 +102,11 @@ class SteamdeckMate:
                 break
             except BaseException as e:
                 self.logger.error("got error", exc_info=e)
+                traceback.print_exc()
                 break
             except:
                 self.logger.error("got unknown error", exc_info=True)
+                traceback.print_exc()
                 break
             finally:
                 self.logger.info("Application closed.")
@@ -140,10 +152,13 @@ class SteamdeckMate:
     async def stop(self) -> None:
         self.logger.info("Stopping...")
         self.running = False
-        self.soundcard.stop_recording()
-        self.soundcard.stop_playback()
-        await self.service_discovery.stop()
-        self.soundcard.close()
+        if self.soundcard is not None:
+            self.soundcard.stop_recording()
+            self.soundcard.stop_playback()
+        if self.service_discovery is not None:
+            await self.service_discovery.stop()
+        if self.soundcard is not None:
+            self.soundcard.close()
         self.logger.info("All resources closed. Stopped.")
 
 
