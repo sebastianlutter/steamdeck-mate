@@ -48,12 +48,19 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
         return f"Ollama Remote {self.name}: {self.model} on {self.llm_endpoint}."
 
     async def check_availability(self) -> bool:
+        self.logger.debug(f"[check_availability {self.name}] Checking availability of {self.model} on {self.llm_endpoint}")
+
         if not await self.__check_remote_endpoint__(self.llm_endpoint):
+            self.logger.debug(f"[check_availability {self.name}] Remote endpoint {self.llm_endpoint} is not reachable")
             return False
+
         parsed = urlparse(self.llm_endpoint)
         host: Optional[str] = parsed.hostname
         port: Optional[int] = parsed.port
         models_url: str = f"{parsed.scheme}://{host}:{port}/api/tags"
+
+        self.logger.debug(f"[check_availability {self.name}] Checking models at {models_url}")
+
         try:
             timeout = aiohttp.ClientTimeout(total=2)
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -65,9 +72,11 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
                             models_url,
                             resp.status
                         )
+                        self.logger.debug(f"[check_availability {self.name}] Failed with HTTP status {resp.status}, expected 200")
                         return False
                     data = await resp.json()
                     installed_models = [m.get("name") for m in data.get("models", [])]
+                    self.logger.debug(f"[check_availability {self.name}] Found installed models: {installed_models}")
         except Exception as e:
             self.logger.warning(
                 "[check_availability %s] Failed while calling %s. Reason: %s",
@@ -75,7 +84,9 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
                 models_url,
                 e
             )
+            self.logger.debug(f"[check_availability {self.name}] Exception details: {str(e)}")
             return False
+
         if self.model not in installed_models:
             self.logger.warning(
                 "[check_availability %s] Model '%s' not found in installed models: %s",
@@ -83,6 +94,8 @@ class LlmOllamaRemote(LlmInterface, metaclass=abc.ABCMeta):
                 self.model,
                 installed_models
             )
+            self.logger.debug(f"[check_availability {self.name}] Required model '{self.model}' is not installed on the server")
             return False
 
+        self.logger.debug(f"[check_availability {self.name}] Model '{self.model}' is available and ready to use")
         return True
