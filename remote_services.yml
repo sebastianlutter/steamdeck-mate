@@ -38,11 +38,6 @@ STT:
     priority: 0
     endpoint: "http://127.0.0.1:8000/v1/audio/transcriptions?language=de"
 
-  - name: "OpenrouterOpenAiSTT"
-    base_class: "mate.services.stt.stt_openrouter_openai.OpenRouterSTT"
-    priority: 80
-    model: "openai/whisper"
-
 TTS:
   - name: "WorkstationTTS"
     base_class: "mate.services.tts.tts_openedai_speech.TTSOpenedAISpeech"
