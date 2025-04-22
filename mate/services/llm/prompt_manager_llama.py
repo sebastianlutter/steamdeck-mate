@@ -8,7 +8,7 @@ from mate.services.llm.prompt_manager_interface import (
     ReductionStrategy,
     GLOBAL_BASE_TEMPLATES,
 )
-
+import datetime
 
 class LlamaPromptManager(PromptManager[List[Dict[str, str]], Dict[str, str]]):
     """
@@ -27,12 +27,8 @@ class LlamaPromptManager(PromptManager[List[Dict[str, str]], Dict[str, str]]):
             raise
 
         for mode in Mode:
-            self.histories[mode] = [
-                {
-                    "role": "system",
-                    "content": GLOBAL_BASE_TEMPLATES[mode.name].system_prompt,
-                }
-            ]
+            # init the system prompt
+            self.empty_history()
 
     def set_history(self, history: List[Dict[str, str]]) -> None:
         if not isinstance(history, list):
@@ -56,10 +52,12 @@ class LlamaPromptManager(PromptManager[List[Dict[str, str]], Dict[str, str]]):
 
     def empty_history(self) -> None:
         self.get_history().clear()
+        primer = f"Heute ist {['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'][datetime.datetime.now().weekday()]} der {datetime.datetime.now().strftime('%d.%m.%Y')}. Du befindest dich in Deutschland"
+
         self.get_history().append(
             {
                 "role": "system",
-                "content": GLOBAL_BASE_TEMPLATES[self.current_mode.name].system_prompt,
+                "content": f"{primer}. " + GLOBAL_BASE_TEMPLATES[self.current_mode.name].system_prompt,
             }
         )
         self.logger.info("History emptied for mode %s", self.current_mode.name)

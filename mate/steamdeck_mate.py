@@ -9,6 +9,7 @@ load_dotenv()
 import asyncio
 import logging
 import re
+import os
 from typing import AsyncGenerator
 
 from nltk import sent_tokenize
@@ -29,7 +30,22 @@ from mate.utils import clean_str_from_markdown, is_sane_input_german
 format_string = (
     "[%(levelname)s - %(filename)s:%(lineno)d.%(funcName)s() - %(message)s"
 )
-logging.basicConfig(format=format_string, level=logging.INFO)
+# Get log level from environment variable, default to INFO if not set
+log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+
+# Map string log levels to logging module constants
+log_level_map = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL
+}
+
+# Get the numeric log level, default to INFO if the string is not recognized
+log_level = log_level_map.get(log_level_str, logging.INFO)
+
+logging.basicConfig(format=format_string, level=log_level)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 logging.getLogger("websocket").setLevel(logging.ERROR)
 

@@ -41,13 +41,13 @@ class BaseService(abc.ABC):
             writer.close()
             await writer.wait_closed()
         except Exception as e:
-            self.logger.debug(
-                "[check_availability %s] Could not connect to host '%s' on port %s. Reason: %s",
-                self.name,
-                host,
-                port,
-                e
-            )
+            #self.logger.debug(
+            #    "[check_availability %s] Could not connect to host '%s' on port %s. Reason: %s",
+            #    self.name,
+            #    host,
+            #    port,
+            #    e
+            #)
             return False
         return True
 
@@ -124,7 +124,7 @@ class ServiceDiscovery:
         """
         Start periodic service availability checks in the background.
         """
-        self.logger.info(f"Check availability of {len(self.services)} services in given interval every 3 seconds")
+        self.logger.info(f"Check availability of {len(self.service_definitions)} services in given interval every 3 seconds")
         self._stop_event.clear()
         # Run one full scan and wait for it to finish.
         await self._check_services_once()

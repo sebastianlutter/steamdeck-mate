@@ -1,21 +1,21 @@
 LLM:
-  - name: "WorkstationLlama8b"
+  - name: "WorkstationOllama8b"
     base_class: "mate.services.llm.llm_ollama_remote.LlmOllamaRemote"
     priority: 100
     endpoint: "http://192.168.0.75:11434"
     ollama_model: "llama3.1:8b"
 
-  - name: "SteamdeckLlama1b"
+  - name: "SteamdeckOllama1b"
     base_class: "mate.services.llm.llm_ollama_remote.LlmOllamaRemote"
     priority: 50
     endpoint: "http://192.168.1.87:11434"
-    ollama_model: "llama3.1:8b"
+    ollama_model: "llama3.2:1b"
 
   - name: "LocalhostOllama3b"
     base_class: "mate.services.llm.llm_ollama_remote.LlmOllamaRemote"
     priority: 0
-    endpoint: "http://192.168.0.75:11434"
-    ollama_model: "llama3.1:8b"
+    endpoint: "http://127.0.0.1:11434"
+    ollama_model: "llama3.2:3b"
 
   - name: "OpenRouterGPT4"
     base_class: "mate.services.llm.llm_openrouter_gpt.LlmOpenrouterGpt"

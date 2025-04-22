@@ -21,13 +21,15 @@ class LlmOpenrouterGpt(LlmInterface):
         self.model = model
         self.client = None
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        if not self.api_key:
+            self.logger.warning("OpenRouter API key not set")
 
     async def check_availability(self) -> bool:
         """
         Check if the OpenRouter API is available and properly configured.
         """
         if not self.api_key:
-            self.logger.warning("OpenRouter API key not set")
+            self.logger.debug("OpenRouter API key not set")
             return False
         # Check if the base URL is reachable
         parsed = urlparse(self.base_url)
